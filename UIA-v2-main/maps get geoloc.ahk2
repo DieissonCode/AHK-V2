@@ -1,0 +1,26 @@
+﻿#Requires AutoHotkey v2.0
+#SingleInstance Force
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA_Browser.ahk
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA.ahk
+
+WinWaitActive "ahk_exe chrome.exe"
+cUIA := UIA_Browser()
+
+F2::	{
+	try	if	cUIA.FindElement({Type:'50000', Name: 'Copy plus code', LocalizedType:'botão'})
+		cUIA.FindElement({Type:'50000', Name: 'Copy plus code', LocalizedType:'botão'}).Click()
+	Else
+		A_Clipboard := 'NAME'
+	; RegExMatch( cUIA.GetCurrentURL(),"(-?\d+\.\d+),(-?\d+\.\d+)",&_pos)
+	RegExMatch( cUIA.GetCurrentURL(),"(-?\d+\.\d+)",&_pos)
+	RegExMatch( A_Clipboard, "\s+([^\s,]+(?:\s[^\s,]+)*)(?=,)", &loc)
+	; FileAppend(SubStr(loc[0],2) " : [" _pos[1] "," _pos[2] "],`n", "unidades.txt")
+	FileAppend(SubStr(loc[0],2) " : [" _pos[0] "," _pos[1] "],`n", "unidades.txt")
+}
+
+F3::	{
+	A_Clipboard := ""
+	A_Clipboard := cUIA.GetCurrentDocumentElement().DumpAll() 
+	ClipWait 1
+	ExitApp
+}

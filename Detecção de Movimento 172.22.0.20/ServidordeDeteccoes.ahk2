@@ -1,0 +1,402 @@
+﻿;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.0.6.0
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = KAH - Distribuidor de Imagens de Detecção
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\_gray\2motion.ico
+/*
+	BD = MotionDetection
+	16/01/2021	-	Alterado para inserir as imagens geradas apenas a cada 100 eventos
+	28/01/2021	-	Ajustado o nome "_local" na variavel de distribuicao para remover nova linha e evitar erros ao mover
+	11/02/2021	-	Inserido linha para restart do banco de dados MotionDetection ANTES de recriar o array de câmeras
+	19/02/2021	-	Incrementado sistema de sinistro
+	04/04/2021	-	Adicionado sub função Restaura_Sinistro para finalizar sinistros expirados e não encerrados pelo cliente
+	03/04/2022	-	Migrado para o Visual Code
+	17/05/2022	-	Alterado banco de dados para o banco automático do dguard e alterado o sistema de arrays
+	16/06/2022	-	Alterado var foscam, para limpar a mesma antes de atualizar os valores
+	24/06/2022	-	Fixado bug que parava o preparador de imagens e desacoplado o preparador do servidor
+	27/08/2022	-	Sistema de versão no traytip adicionado
+	27/08/2022	-	Sistema de versão no traytip adicionado
+	07/06/2023	-	Adicionado aut_update e feito revisão da query de seleção de câmeras para montar o array
+	12/08/2024	-	Ajustado a função sql_version() para exibir desde quando está sendo executado o aplicativo
+	30/08/2024	-	Atualizado para AHK V2
+*/
+
+/*	Bancos de Dados
+	[Dguard].[dbo].[cameras]
+	[Dguard].[dbo].[cameras_mac]
+	[MotionDetection].[dbo].[operadores]
+*/
+
+;	Includes
+	#Include md_libs.ahk2
+	
+;	Configurações
+	Global comando_inserir := 0
+	#SingleInstance Force
+	; OnExit("close_preparaimagens")
+	Switch	A_UserName	{
+		case 'dsantos':
+			motion	:=	'\\srvftp\Monitoramento\FTP\Motion\'
+			FTP		:=	'\\srvftp\Monitoramento\FTP\'
+		Default:
+			motion	:=	'D:\FTP\Monitoramento\FTP\Motion\'
+			FTP		:=	'D:\FTP\Monitoramento\FTP\'
+
+	}
+	detecçõesForaDeHora	:=	Map()
+
+	hide_output	:=	''
+	If	A_IsCompiled	{
+		if not (A_IsAdmin or RegExMatch(DllCall("GetCommandLine", "str"), " /restart(?!\S)"))	{
+			try Run '*RunAs "' A_ScriptFullPath '" /restart'
+			ExitApp
+		}
+		auto_update(,1)
+		If !FileExist( FTP "\Ico\2motion.ico" )
+			FileInstall('\\192.9.100.100\c$\AHK\icones\_gray\2motion.ico', FTP 'Ico\2motion.ico',1)
+
+		If !FileExist( FTP "\Ico\2motionp.ico" )
+			FileInstall('\\192.9.100.100\c$\AHK\icones\_gray\2motionp.ico', FTP 'Ico\2motionp.ico',1)
+		ext			:= '.exe'
+
+	}
+	Else
+		ext	:= '.ahk'
+	sql_version(,,datetime()), ToolTip('Executando em 1 segundo...'), geradas	:=	[], Sleep(1000), ToolTip(), Debug( A_LineNumber, 'Preparando Array', hide_output )
+	prepara_array(), Debug( A_LineNumber, 'Array Preparado', hide_output )
+	SetTimer(distribui_imagens_por_operador, 999)
+	SetTimer(check_reload, 5000)
+return
+
+check_reload()	{
+	If( SubStr( A_Now, 9 ) > 203000 && SubStr( A_Now, 9 ) < 203010) {
+		report( A_YDay )
+		Sleep(8000)
+		Reload
+	}
+}
+
+close_preparaimagens(){
+	process_exist( "preparaimagens" )
+	ProcessClose('preparaimagens.exe')
+	ProcessClose('preparaimagens.exe')
+	ProcessClose('preparaimagens.exe')
+	ExitApp(0)
+
+}
+
+prepara_array()	{
+	Global cameras := Map()
+	email	:= Mail()
+	base	:= Base64()
+	SetTimer(distribui_imagens_por_operador,	0)
+	Sleep(2000)
+		Debug( A_LineNumber, "Entrou em prepara Array", hide_output )
+
+	;	Rotina de array de cameras e limpeza de log de imagens geradas de período maior que 40 dias(mesmo período de gravações)
+		empty:= 0
+		empty:
+			empty++
+			s	:=
+				(
+					" DELETE"
+					" 	FROM"
+					" 		[MotionDetection].[dbo].[Geradas]"
+					" 	WHERE"
+					" 		[horario] < DATEADD( day, -40, GETDATE());"
+					" SELECT"
+					" 	c.[ip]"
+					" 	,m.[mac]"
+					" 	,c.[name]"
+					" 	,c.[operador]"
+					" 	,c.[sinistro]"
+					" 	,LEFT( c.[vendormodel], charindex(' ', c.[vendormodel]) - 1)"
+					" FROM"
+					" 	[Dguard].[dbo].[cameras] c"
+					" LEFT JOIN"
+					" 	[Dguard].[dbo].[cameras_mac] m"
+					" ON"
+					" 	c.[ip] = m.[ip];"
+
+				)
+			s	:=	sql(s)
+		if(s = "EMPTY" && empty < 10 )
+			Goto	empty
+		Else {
+			If( s.Length-1 > 1 )	{
+				
+				foscam	:= ''
+				Loop	s.Length-1 {
+					cameras[s[A_Index+1][1]]	:=	(s[A_Index+1][2] = "" || s[A_Index+1][2] = "sno6011" ? "0000" : s[A_Index+1][2]) "&&"	;	ip : mac&&nome&&0000&&0001
+												.	 s[A_Index+1][3] "&&"
+												.	(s[A_Index+1][4] = "" ? "0000" : s[A_Index+1][4]) "&&"
+												.	(s[A_Index+1][5] = "" ? "0000" : s[A_Index+1][5])
+				}
+			}
+
+			reset_bd	:=	;	Reseta o banco de dados motiondetection
+				(
+					"alter database [MotionDetection] set offline with rollback immediate;`n"
+					"alter database [MotionDetection] set online"
+				)
+			sql( reset_bd )
+			Sleep(2000)
+		}
+		If	!(Cameras.Count > 1)
+			email.new(	"dsantos@cotrijal.com.br"
+						,	"Falha Servidor de Deteccoes - " Substr(datetime(), 1, 10 )
+						,	"Busca SQL não retornou nenhuma câmera para montar o array de consulta`n`t`tServidorDeDetecções`n`nSugestão:`n`tAcesse o servidor de detecções de movimento e reinicie " )
+		empty := ''
+		Debug( A_LineNumber, "Cameras no array = " Cameras.Count, hide_output )
+	SetTimer(prepara_array,	-3600000)	;	de hora em hora recarrega os dados do banco de dados
+
+	If !process_exist( "preparaimagens.exe" ) ;{
+		&&	A_IsCompiled	{
+
+		debug(A_LineNumber,"executando Preparaimagens")
+
+		If	!FileExist("D:\FTP\Monitoramento\FTP\preparaimagens.exe") {
+
+			s :=
+				(
+					"SELECT TOP (1)"
+					"	[BIN],"
+					"	[NAME]"
+					"FROM"
+					"	[ASM].[dbo].[Softwares]"
+					"WHERE [NAME] = 'preparaimagens'"
+					"ORDER BY [PKID] DESC"
+				)
+			s	:=	sql( s )
+			base.FileDec( s[2][1], "D:\FTP\Monitoramento\FTP\" s[2][2] ".exe" )
+			Sleep(2000)
+
+		}
+		Else
+			auto_update( "preparaimagens",1 )
+
+		ProcessClose('preparaimagens.exe')
+		ProcessClose('preparaimagens.exe')
+		MsgBox
+		Run( FTP 'preparaimagens.exe' )
+
+	}
+	SetTimer(distribui_imagens_por_operador, 999)
+}
+
+distribui_imagens_por_operador()	{
+
+	Global FTP, geradas, cameras
+	debug(A_LineNumber, "Verificando se há imagens para distribuir")
+
+	Loop Files, FTP 'Imagens Preparadas\*.jpg'
+		{
+		Debug( A_LineNumber, "Buscando arquivos de imagem", hide_output )
+		StartTime	:= A_TickCount
+		img			:= _local := setor := hora := ""
+		img			:= StrSplit( A_LoopFileName, "_" )
+		ip			:= img[1]
+		hora_imagem := datetime( 1, img[2] )
+		tempo		:= StrSplit( StrRep( hora_imagem,, '.000'), A_Space )
+		hora		:= StrSplit( tempo[2], ':' )
+		;	Verifica se a câmera não está cadastrada
+			If( cameras[ ip ] ?? "" = "" )	{	;	Se não constar no CADASTRO, gera log, move e vai pra próxima
+				OutputDebug("Sem Cadastro " ip)
+					if !FileExist( FTP 'Logs\Sem cadastro.txt' )
+						FileAppend( "IP`n", FTP 'Logs\Sem cadastro.txt')
+					else	{
+						file := FileOpen( FTP 'Logs\Sem cadastro.txt', "a")
+						file.Write(ip '`n')
+						file.Close()
+					}
+					FileDelete( A_LoopFileFullPath)
+				continue
+			}
+
+		; ;	Distribui imagem para o operador
+			Debug( A_LineNumber, "Distribuição - ip "	ip, hide_output )
+			cam_data 	:=	StrSplit( cameras[ ip ], "&&" )
+			_local		:=	cam_data[2]					;	Nome da Câmera
+			setor		:=	"000" cam_data[3]			;	Operador 
+			data_e_hora	:=	SubStr( img[2], 1, 15 )		;	Data e Horário
+			op_sinistro	:=	"000" cam_data[4]	= "0"	;	Operador quando em sinistro
+												? "0000"
+												: "000" cam_data[4]
+
+			If( geradas.Length ?? 0 >= 100 || comando_inserir = 1 )	{	;	Se pronto para inserir ou inserção forçada
+				SetTimer(distribui_imagens_por_operador, 0)
+				geradas2 := geradas
+				SetTimer(distribui_imagens_por_operador, 999)
+				Loop	geradas2.Length	{
+					Switch	{
+						Case A_Index = 1:
+							insere_	.=	"INSERT INTO  [MotionDetection].[dbo].[Geradas] (ip,horario,folder) VALUES " geradas2[A_Index]	",`n"
+						Case geradas2.Length = A_Index:
+							insere_	.=	geradas2[A_index]
+						Default:
+							insere_	.=	geradas2[A_Index]	',`n'
+					}
+					MsgBox()
+				Try	sql(insere_) ; executa inserção no banco de dados sem gerar msg de erro
+				insere_			:=	''
+				geradas			:=	[]
+				geradas2		:=	[]
+				comando_inserir	:=	0
+				}
+			Else
+				geradas.push( "('" img[1] "','" hora_imagem "','" setor "')" )
+
+		FileMove(A_LoopFileFullPath, FTP setor '\' data_e_hora '_' img[1] '_' StrReplace( _local, '|', '-' ) '_' op_sinistro '.jpg', 1)
+		fora_de_horário( ip, hora, &ftp )
+		FileAppend(datetime() '`t' A_LoopFileFullPath '`t|`t'	FTP setor '\' data_e_hora '_' img[1] '_' StrReplace( _local, '|', '-' ) '_' op_sinistro '.jpg`n', FTP 'Logs\log preparaImagens ' A_Yday '.txt')
+		}
+	}
+}
+
+
+fora_de_horário( ip, hora, &FTP )	{
+	; if( hora[1] > 6 && hora[1] hora[2] < 2030  ) {
+	; 	if(	detecçõesForaDeHora[ip].vezes ?? 0 > 0)
+	; 		detecçõesForaDeHora[ip] := { vezes : (detecçõesForaDeHora[ip].vezes ?? 0) +1 }
+	; 	Else
+	; 		detecçõesForaDeHora[ip] := { vezes : 1 }
+	; 	FileAppend(datetime() "`n`t"	ip "`t" detecçõesForaDeHora[ip].vezes "`n", FTP	"Logs\log Detecções fora de horário " A_Yday ".txt")
+	; }
+}
+
+
+report( lista_html, to:='' ) {
+	email	:=	Mail()
+	if	has := lista_html.Length {
+
+		periodo		:=	"06:00:00 - 20:29:59"
+
+		For ip in lista_html
+			html_cell.=	"<tr>`n`t<td><b>"	ip						"</b></td>"
+						.	"`n<td>"		lista_html[ip].vezes	"</td>"
+						.	"`n<td>"		periodo					"</td>`n<tr>`n"
+
+		table	:= '
+			(
+				<html>
+					<fieldset>
+						<legend style="color:Blue"><b>%has% - Câmeras com configuração de horário errada ou nas configurações de Detecção de Movimento:</b></legend>
+						<table style="width: 100%;" border="1" cellpadding="1">
+							<tr>
+								<th style="width:200px">	IP</th>
+								<th>						Detecções de Movimento Ocorridas</th>
+								<th style="width:150px">	Período</th>
+							</tr>
+							%html_cell%
+						</table>
+					</fieldSet>
+			)'
+
+	}
+	Else
+		table	:= '
+			(
+				<html>
+					<fieldset>
+						<legend style="color:Blue"><b>0 - Câmeras com configuração de horário errada no campo de Data e Hora ou nas Detecções de Movimento:</b></legend>
+						<table style="width: 100%;" border="1" cellpadding="1">
+						</table>
+					</fieldSet>
+			)'
+	If	to
+		email.new(	to "@cotrijal.com.br"
+				,	lista_html.Length " - Configuração de horário de detecção ou data e hora errados"
+				,	table
+				,
+				,
+				,	"dieisson13@gmail.com"	)
+	Else
+		email.new(	"dsantos@cotrijal.com.br"
+				,	lista_html.Length " - Configuração de horário de detecção ou data e hora errados"
+				,	table
+				,
+				,
+				,	"mrodrigues@cotrijal.com.br"
+				,	"ddiel@cotrijal.com.br"
+				,	"egraff@cotrijal.com.br"	)
+				FileAppend(datetime() '`n`tEnvio de e-mail`n', FTP 'Logs\log Envio de E-Mail ' A_Yday '.txt')
+}
+
+; ^PgUp:: {
+; 	g := Gui()
+; 	G.Add('Text','h20	w100	Section	0x1000		Center' G.SetFont('Bold', 'cWhite'), 'Comando')
+; 	G.Add('Edit','ys	wp		v_Command'			G.SetFont())
+; 	G.Add('Button','xs	wp		Section gCommands	Default', 'Executar')
+; 	G.Add('Button','ys	wp ', 'Cancelar')
+; 	G.Show()
+; }
+
+; ^F1::	;	Tooltips
+; 	IS_TOOLTIP_ON	:=	!IS_TOOLTIP_ON
+; 	If( IS_TOOLTIP_ON = 1 )	{
+; 		If( debug = 0 )
+; 			Menu,	Tray,	Icon,	%FTP%Ico\2motionp.ico
+; 		ToolTip,%	data_e_hora	"_" img[1] "_" _local "`nInibida:" inibida
+; 				.	"`n" datetime()
+; 				.	"`n" setor
+; 				.	"`n`tModo dia = " dia
+; 				.	"`nImagens em log para inserção no BD(insere a cada 100)= " geradas.Length,	10, 10
+; 	}
+; 	Else	{
+; 		If( debug = 0 )
+; 			Menu,	Tray,	Icon,	%FTP%Ico\2motion.ico
+; 		ToolTip
+; 		MsgBox,,, Tooltip %IS_TOOLTIP_ON%, 1
+; 	}
+; return
+
+; ^F2::
+; 	dia	:=	!dia
+; 	If( dia = 1 )	{
+; 		IS_TOOLTIP_ON	:=	!IS_TOOLTIP_ON = 1
+; 		If( debug = 0 )
+; 			Menu,	Tray,	Icon,	%FTP%Ico\2motionp.ico
+; 		ToolTip,%	data_e_hora	"_" 	img[1] "_" _local
+; 				.	"`nInibida:"		inibida
+; 				.	"`n"				datetime()
+; 				.	"`n"				setor
+; 				.	"`n`tModo dia = "	dia
+; 				.	"`nImagens em log para inserção no BD(insere a cada 100)= " geradas.Length,	10, 10
+; 		MsgBox,	,	Verificar Dia,	Ativado, 1
+; 	}
+; 	Else	{
+; 		MsgBox,	,	Verificar Dia,	Desativado, 1
+; 		If( IS_TOOLTIP_ON = 1 )
+; 			ToolTip,%	data_e_hora	"_" img[1] "_" _local
+; 					.	"`nInibida:"		inibida
+; 					.	"`n"				datetime()
+; 					.	"`n"				setor
+; 					.	"`n`tModo dia = "	dia
+; 					.	"`nImagens em log para inserção no BD(insere a cada 100)= " geradas.Length,	10, 10
+; 	}
+; return
+
+; ^Home:: {
+; 	ToolTip('Enviando comando')
+; 	TargetScriptTitle	:=	"preparaimagens.exe"
+; 	ShowTrayTip			:=	'ShowTrayTip'
+; 	result := wm_send( &ShowTrayTip, &TargetScriptTitle )
+; 	if(	result = "FAIL")
+;     	ToolTip('SendMessage failed. Does the following WinTitle exist?:`n' TargetScriptTitle)
+; 	else if (result = 0)
+;     	ToolTip('Message sent but the target window responded with 0, which may mean it ignored it.')
+; 	Else
+; 		ToolTip('Enviado com sucesso')
+; 	Sleep('3000')
+; 		ToolTip()
+; }
+
+^F3:: {
+	comando_inserir	:=	!comando_inserir
+}
+
+^End::	 {
+	ExitApp(0)
+}

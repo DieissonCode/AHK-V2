@@ -1,0 +1,135 @@
+﻿; Requires AutoHotkey v2
+#Requires AutoHotkey v2.0
+
+; Lorde Supremo da Supremacia Suprema - Aplicação de Gerenciamento de Férias
+; ---------------------------------------------------------------
+; Estrutura de dados e funções de utilidade
+; ---------------------------------------------------------------
+class Employee {
+    __New(Name, Matricula, Setor, Cargo, HireDate, PastVacations := [], FutureVacations := []) {
+        this.Name := Name
+        this.Matricula := Matricula
+        this.Setor := Setor
+        this.Cargo := Cargo
+        this.HireDate := HireDate ; DateTime object
+        this.PastVacations := PastVacations ; Array of DateTime
+        this.FutureVacations := FutureVacations ; Array of DateTime
+    }
+}
+
+; Dados de exemplo (substituir por persistência real)
+Employees := []
+
+; ---------------------------------------------------------------
+; Função para popular ListView
+; ---------------------------------------------------------------
+UpdateListView(gui, employees) {
+    lv := gui.GetControl("lvEmployees")
+    lv.DeleteAll()
+    for emp in employees {
+        row := [ emp.Name
+               , emp.Matricula
+               , emp.Setor
+               , emp.Cargo
+               , emp.HireDate.Format("yyyy-MM-dd") ]
+        ; últimos 5 anos
+        for date in emp.PastVacations
+            row.Push(date.Format("yyyy-MM-dd"))
+        ; próximos 2 anos (podem estar vazios)
+        for date in emp.FutureVacations
+            row.Push(date.Format("yyyy-MM-dd"))
+        lv.Add(row*)
+    }
+}
+
+; Função de ordenação por coluna
+; ---------------------------------------------------------------
+SortByColumn(employees, colIndex) {
+    Sort employees, (a, b) => {
+        aVal := (colIndex <= 5 ? a.HireDate.Format : "")
+        ; Ajuste para demais colunas conforme índice
+        return StrCompare(a[colIndex], b[colIndex])
+    }
+}
+
+; ---------------------------------------------------------------
+; Criação da GUI
+; ---------------------------------------------------------------
+gui := Gui("+Resize", "Calendário de Férias")
+; ListView com colunas ordenáveis
+cols := ["Nome", "Matrícula", "Setor", "Cargo", "Data de Contratação"
+        , "Férias -5", "Férias -4", "Férias -3", "Férias -2", "Férias -1"
+        , "Futuro +1", "Futuro +2"]
+lv := gui.Add("ListView", "w800 h300 Grid v lvEmployees","" )
+for i, title in cols
+    lv.InsertColumn(i, title)
+; Captura clique em cabeçalho para ordenar
+lv.On("ColClick", Func("OnColClick"))
+
+; Campos de edição para férias futuras
+gui.Add("Text","x10 y320","Data de Férias:")
+edtDate := gui.Add("DateTime", "x100 y315 w120 v edtVacationDate")
+btnConfirm := gui.Add("Button", "x240 y315 w80 h25", "Confirmar")
+btnConfirm.OnEvent("Click", Func("OnConfirm"))
+
+gui.Show()
+return
+
+; Evento de clique no cabeçalho para ordenar
+OnColClick(this, colIndex) {
+    global Employees, gui
+    SortByColumn(Employees, colIndex)
+    UpdateListView(gui, Employees)
+}
+
+; Evento de seleção de linha: carrega próximas férias no campo
+lvEmployees_OnSelect(this, rowIndex) {
+    global Employees, gui, edtDate
+    if rowIndex < 1
+        return
+    emp := Employees[rowIndex-1]
+    ; assume primeiro slot de férias futuras
+    date := emp.FutureVacations.Has(1) ? emp.FutureVacations[1] : DateTime.Now()
+    edtDate.Value := date
+}
+
+; Evento de confirmação de novas férias
+OnConfirm(this) {
+    global Employees, gui, lvEmployees, edtDate
+    sel := lvEmployees.Selected
+    if !sel {
+        MsgBox("Selecione um colaborador primeiro.")
+        return
+    }
+    emp := Employees[sel-1]
+    newDate := edtDate.Value
+    ; Verifica vencimento das férias (um ano após último período)
+    lastVacation := emp.PastVacations.Length() ? emp.PastVacations[emp.PastVacations.Length()] : emp.HireDate
+    if newDate < lastVacation.AddYears(1) {
+        MsgBox("Férias ainda não vencidas para este colaborador.")
+        return
+    }
+    ; Verifica limite de 2 colaboradores por mês e cargo
+    count := 0
+    for e in Employees {
+        for fv in e.FutureVacations {
+            if fv.Year == newDate.Year && fv.Month == newDate.Month && e.Cargo == emp.Cargo
+                count++
+        }
+    }
+    if count >= 2 {
+        MsgBox("Já existem 2 colaboradores com o mesmo cargo neste mês.")
+        return
+    }
+    ; Insere nova data
+    emp.FutureVacations.Push(newDate)
+    UpdateListView(gui, Employees)
+    MsgBox("Férias confirmadas para " emp.Name)
+}
+
+; Atualiza ListView inicial
+gui.On("Show", Func("OnShow"))
+OnShow(this) {
+    global Employees, gui
+    UpdateListView(gui, Employees)
+}

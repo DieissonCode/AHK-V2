@@ -1,0 +1,109 @@
+﻿#Requires AutoHotkey v2.0
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA_Browser.ahk
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA.ahk
+F2:: {	;	Login
+	chromeTitle := "ahk_class Chrome_WidgetWin_1"
+	__ := WinGetControls(chromeTitle)
+	if (chromeWindow := WinExist(chromeTitle)) {
+		if (WinActive(chromeTitle)) {
+			cUIA := UIA_Browser()
+			user := cUIA.WaitElement({ AutomationId: "login_user" })
+			pass := cUIA.WaitElement({ AutomationId: "login_psw" })
+			user.Value := "admin"
+			pass.Value := "tq8hSKWzy5A"
+			cUIA.FindElement({ Type: "50005", and: [{ Name: "Login" }] }).Click()
+			cUIA.WaitElement({ Type: "50005", and: [{ Name: "Event" }] })
+			Sleep 100
+			cUIA.FindElement({ Type: "50005", and: [{ Name: "Event" }] }).Click()
+			; __ := cUIA.GetCurrentDocumentElement().DumpAll()
+			; A_Clipboard :=__
+		}
+		else {
+			MsgBox("Failed to activate Chrome window.")
+			ExitApp
+		}
+	}
+	else {
+		MsgBox("Chrome window not found. Make sure Chrome is open with the correct profile.")
+		ExitApp
+	}
+
+}
+
+F3:: {	;	Get infos in clipboard
+	ChromeTitle := "ahk_class Chrome_WidgetWin_1"
+	__ := WinGetControls(ChromeTitle)
+	if (chromeWindow := WinExist(ChromeTitle)) {
+		cUIA := UIA_Browser()
+		__ := cUIA.GetCurrentDocumentElement().DumpAll()
+		A_Clipboard := __
+	}
+}
+
+F4:: {	
+	ChromeTitle := "ahk_class Chrome_WidgetWin_1"
+	WinGetControls(ChromeTitle)
+	if (WinExist(ChromeTitle)) {
+		cUIA := UIA_Browser()
+		cUIA.WaitElement({ Name: "Add User", and: [{ LocalizedType: "link" }] })
+		cUIA.FindElement({ Name: "Add User", and: [{ LocalizedType: "link" }] }).Click()
+
+		cUIA.WaitElement({ Name: "Username", and: [{ LocalizedType: "text" }] })
+		user := cUIA.WaitElement({ AutomationId: "use_AUserName" })
+		pas1 := cUIA.WaitElement({ AutomationId: "use_AUserPwd" })
+		pas2 := cUIA.WaitElement({ AutomationId: "use_AUserPwdCfm" })
+		memo := cUIA.WaitElement({ AutomationId: "use_AUserMemo" })
+		user.Value := "probal"
+		pas1.Value := "Pr0b4l2024"
+		pas2.Value := "Pr0b4l2024"
+		memo.Value := "Usado no sistema de pesagens"
+		cUIA.FindElement({ Name: "All", and: [{ AutomationId: "use_AUserAuth" }] }).Click()
+		cUIA.FindElement({ Name: "Live", and: [{ AutomationId: "use_AUserAuthli_Monitor_01" }] }).Click()
+		cUIA.FindElement({ Name: "AV Parameter", and: [{ AutomationId: "use_AUserAuthli_AuthAVParam" }] }).Click()
+		cUIA.FindElement({ Name: "Save", and: [{ LocalizedType: "text" }] }).Click()
+
+	}
+}
+
+^F4:: {	; samsung
+	ChromeTitle := "ahk_class Chrome_WidgetWin_1"
+	WinGetControls(ChromeTitle)
+	if (WinExist(ChromeTitle)) {
+		cUIA := UIA_Browser()
+		cUIA.WaitElement({ Name: "setup icon Setup", and: [{ LocalizedType: "link" }] })
+		cUIA.FindElement({ Name: "setup icon Setup", and: [{ LocalizedType: "link" }] }).Click()
+
+		cUIA.WaitElement({ Name: "User", and: [{ LocalizedType: "link" }] })
+		cUIA.FindElement({ Name: "User", and: [{ LocalizedType: "link" }] }).Click()
+
+		cUIA.WaitElement({ Name: "Add", and: [{ LocalizedType: "link" }] })
+		cUIA.FindElement({ Name: "Add", and: [{ LocalizedType: "link" }] }).Click()
+
+		cUIA.WaitElement({ AutomationId: "user_name_0" })
+
+		cUIA.FindElement({ AutomationId: "user_select_0" }).Click()
+		cUIA.FindElement({ AutomationId: "user_enable_0" }).Click()
+
+		user := cUIA.WaitElement({ AutomationId: "user_name_0" })
+		user := cUIA.WaitElement({ AutomationId: "user_name_0" })
+		pass := cUIA.WaitElement({ AutomationId: "user_pw_0" })
+		user.Value := "probal"
+		pass.Value := "Pr0b4l2024"
+
+		cUIA.FindElement({ Name: "Apply", and: [{ LocalizedType: "link" }] }).Click()
+
+	}
+}
+; F4:: {
+;     chromeTitle := "ahk_class Chrome_WidgetWin_1"
+;     __:= WinGetControls(chromeTitle)
+;     if (chromeWindow := WinExist(chromeTitle))	{
+;         cUIA := UIA_Browser()
+;         cUIA.FindElement({Type:"50004", AND:[{Name:"All"}]}).Click()
+;         cUIA.FindElement({Type:"50004", AND:[{Name:"Period2"}]}).Click()
+;         user := cUIA.WaitElement({AutomationId:"login_user"})
+;         pass := cUIA.WaitElement({AutomationId:"login_psw"})
+;         user.Value := "admin"
+;         pass.Value := "tq8hSKWzy5A"
+;     }
+; }

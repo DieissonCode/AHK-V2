@@ -1,0 +1,90 @@
+﻿;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.0.1.0
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = Moni - Cadastro de Usuários
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\pc.ico
+
+; MsgBox a['b'] ?? "Default value"
+;	Includes
+#Include ..\Sistema Monitoramento\libs\Functions.ahk2
+
+;	Configurações
+#SingleInstance Force
+;	Auto atualizador
+; If	A_IsCompiled
+	; auto_update(,1)
+
+sql_version(1)
+
+;	GUI
+	a := Gui(,'Cadastro Usuário')
+	a.Color(a)
+	a.Add('Text','	x10 ' a.SetFont('c000000 Bold')														, 'Insira a matrícula e pressione ENTER')
+	Loop	3
+	a.Add('Edit','	x10		y' A_index*27 '	h20	w220	vVar' A_index ' ' ( A_Index > 1 ? 'ReadOnly Disabled' : '' ))
+	a.Add('Button','xm						h20	w110	va1	'												, 'Criar').OnEvent('Click', Cria)
+	a.Add('Button','xp+110	yp				h20	w110	va2	'												, 'Cancelar').OnEvent('Click', Close)
+	a.Show()
+	a.OnEvent('Close',close)
+return
+
+;	Funções
+	infoColaborador()	{
+		OutputDebug	a['var1'].Text
+		if	!a['var1'].Text
+			Return
+		select	:=	
+			(
+				"SELECT	[NOME],"
+				"		[USUARIO]"
+				"FROM	[ASM].[dbo].[_colaboradores]"
+				"WHERE	[MATRICULA] = '" a['var1'].Text "'"
+			)
+		__ := sql(select)
+		nome:=	__[2][1] ? __[2][1] : 'Usuário Não Encontrado'
+		user:=	__[2][2] ? __[2][2] : getADUser(nome)[1][2]
+		OutputDebug	nome "`t" user
+		a['var2'].Value	:=	nome
+		a['var3'].Value	:=	user
+	}
+
+	Cria(*) {
+		Msgbox(criaUsuario(a['var2'].Text, a['var3'].Text, a['var1'].Text),'Resultado de criação de usuário')
+		ExitApp 0
+	}
+
+	criaUsuario(nome, login, matricula)	{
+		if	verificaExistencia(login)
+			Return "O usuario '" login "' já existe no sistema MONI"
+		insert :=
+			(
+				"INSERT INTO USUARIOS"
+				"	(NOME, LOGIN, SENHA, GRUPOUSUARIO, DESATIVADO, ALTERARSENHA, OPERADOR, EXIBIRBOTAONOTICIAS, GRUPOATENDIMENTO, CODIGO)"
+				"VALUES"
+				"	('" nome "', '" login "', '', '3', '0', '1', '1', '1', '1', '" matricula "');"
+			)
+		sql(insert)
+		Return "Usuario '" login "' criado com sucesso!`nA senha inicial é em branco."
+	}
+
+	verificaExistencia(login)	{
+		select := "SELECT 1 FROM USUARIOS WHERE LOGIN = '" login "'"
+		Return	sql(select).Length-1
+	}
+
+;	Atalhos
+	Tab::	{
+		infoColaborador()
+	}
+
+	Enter::	{
+		infoColaborador()
+	}
+
+	NumpadEnter::	{
+		infoColaborador()
+	}
+
+	Close(*) => ExitApp(0)

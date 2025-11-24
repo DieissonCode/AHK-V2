@@ -1,0 +1,36 @@
+﻿#Requires AutoHotkey v2.0
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA_Browser.ahk
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA.ahk
+F2::    { 
+    chromeTitle := "ahk_class Chrome_WidgetWin_1"
+    if (WinExist(chromeTitle))	{
+        if (WinActive(chromeTitle))	{
+            cUIA := UIA_Browser() 
+            user := cUIA.GetAddress()
+			MsgBox	user
+        }
+        else    {
+            MsgBox("Failed to activate Chrome window.")
+            ExitApp
+        }
+    }
+    else	{
+        MsgBox("Chrome window not found. Make sure Chrome is open with the correct profile.")
+        ExitApp
+    }
+    ; SendInput "Hello"
+
+}
+
+Loop {
+	ToolTip( WinGetTitle('A') )
+	Sleep(100)
+	if IsSet(done)
+		Break
+}
+
+ExitApp
+
+F3::	{
+	done := !done
+}

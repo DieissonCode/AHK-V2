@@ -1,0 +1,19 @@
+﻿#Requires AutoHotkey v2.0
+
+capsRemap := true
+
+; Inicialmente remapeia CapsLock para botão esquerdo do mouse
+Hotkey("CapsLock", (*) => Click("L"), "On")
+
+F1:: {
+    global capsRemap
+    ToolTip(capsRemap)
+    if capsRemap {
+        Hotkey("CapsLock", "Off") ; desativa o hotkey
+        capsRemap := false
+        Send("{CapsLock}") ; ativa o CapsLock real
+    } else {
+        Hotkey("CapsLock", (*) => Click("L"), "On") ; reativa o remapeamento
+        capsRemap := true
+    }
+}

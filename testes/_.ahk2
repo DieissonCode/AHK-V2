@@ -1,0 +1,32 @@
+﻿#SingleInstance Force
+Persistent
+; Create tray icon
+A_TrayMenu.Delete()  ; Clear default menu
+A_TrayMenu.Add("Show Custom Menu", ShowCustomMenu)
+A_TrayMenu.Add("Exit", (*) => ExitApp())
+
+ShowCustomMenu(*) {
+    CustomMenu := Gui("+AlwaysOnTop -Caption +ToolWindow")
+    CustomMenu.BackColor := "Black"
+    
+    ; Add text with different colors
+    CustomMenu.SetFont("s10 cRed")    ; Red text
+    CustomMenu.Add("Text", "xm ym", "Red Option")
+    
+    CustomMenu.SetFont("s10 cGreen")  ; Green text
+    CustomMenu.Add("Text", "xm y+10", "Green Option")
+    
+    CustomMenu.SetFont("s10 cBlue")   ; Blue text
+    CustomMenu.Add("Text", "xm y+10", "Blue Option")
+    
+    ; Add clickable button as example
+    CustomMenu.Add("Button", "xm y+10", "Exit").OnEvent("Click", (*) => ExitApp())
+    
+    ; Position near tray and show
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&x, &y)
+    CustomMenu.Show("x" . x . " y" . y)
+}
+
+; Right-click tray icon to show menu
+A_TrayMenu.ClickCount := 1  ; Single right-click

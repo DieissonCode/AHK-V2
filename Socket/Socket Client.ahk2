@@ -1,0 +1,132 @@
+﻿#Requires AutoHotkey v2.0
+;{	Includes
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Socket.ahk2
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+	;}
+
+;{	Configuration
+	w		:=	405
+	server	:=	'10.0.20.43'
+	port	:=	'12345'
+	;}
+	local_server := winsock("server",cb,"IPV4")
+	local_server.Bind("0.0.0.0",port)	;	local
+	local_server.Listen()
+a:=Gui('AlwaysOnTop -DPIScale','KAH')
+a.Color(a,)
+a.Add('Text', '0x1001	w' w '		h20 vstatus', '').OnEvent('Click', Conectar )
+a.Add('Edit', '0x1001	w' w '		h20 vedit')
+a.Add('Button','	xm	w' w-5,	'Fechar' ).OnEvent('Click', Close )
+a.Add('Button','xs		w' w-5 ' Default','Enviar').OnEvent("Click", EnviarComando)
+; a.Add('Button','	yp	w100 			vbt_pgm_desarmar	Disabled','Desarmar PGM').OnEvent("Click", pgm_desarmar)
+a.Show('x0 y0')
+
+Conectar(server, port)
+
+Close(*){
+	ExitApp(0)
+}
+
+Conectar(dados*)	{
+	Global sock
+	sock := winsock("client", cb, "IPV4")
+	sock.Connect(dados[1], dados[2], true)
+	Global socket_error := sock.errnum ? 1 : 0
+	OutputDebug  "Iniciando cliente." ( sock.errnum ? "`n`tCódigo de erro: " sock.errnum : "")
+	Switch	sock.errnum	{
+		Case 10061:
+			a['status'].SetFont('cRed s10 bold')
+			a['status'].Text := 'Tentando reconectar na porta... ' port ' ' A_Now
+			Conectar(dados[1], dados[2])
+		Default:
+			a['status'].SetFont('cGreen s10 bold')
+			a['status'].Text := 'Conectado'
+	}
+
+}
+
+EnviarComando(*) {
+	strbuf := Buffer(StrLen(a['edit'].value)) ; for CP0, take strLen() + 1 as the buffer size
+	StrPut(a['edit'].value, strbuf, "CP0")
+	OutputDebug('Send`n`t' a['edit'].value '`t' A_LineNumber)
+	if	sock.Send(strbuf) = 0	{
+		OutputDebug	'Reiniciando conexão'
+		conectar(server, port)
+		sleep 500
+		if	!strbuf.size	{
+			OutputDebug('Sem buffer ' A_LineNumber)
+			StrPut(a['edit'].value, strbuf, "CP0")
+		}
+		Sleep 250
+		sock.Send(strbuf)
+		OutputDebug('Send`n`t' a['edit'].value '`t' A_LineNumber)
+	}
+	a['edit'].value := ''
+	Return 1
+}
+
+cb(sock, event, err) {
+	Global	informação_do_cliente
+	Switch	{
+		Case	sock.name = "client":
+			Switch	event	{
+				Case	"Close":
+					informação_do_cliente := ""
+					sock.close()
+
+				Case	"Connect":	; Conexão completa, se err = 0 então foi completo
+					OutputDebug "Conectando à...`n`tEndereço:`t" sock.addr "`n`tPorta:`t" sock.port "`n"
+
+				Case	"Write":	; Cliente pronto para envio ou leitura
+					OutputDebug('Client Write`t')
+					; get_req	:= comando
+					; strbuf	:= Buffer(StrPut(get_req,"CP0"),0)
+					; StrPut(get_req,strbuf,"CP0")
+					; sock.Send(strbuf)
+					; Outputdebug "Enviado:`n`t" Trim(get_req,"`r`n") "`n"
+
+				Case	"Read":		; Não vai haver informação para leitura
+					buf := sock.Recv()
+					informação_do_cliente .= StrGet(buf,"CP0")
+
+			}
+		Case	sock.name = "server", instr(sock.name,"serving-"):
+			Switch	event	{
+				Case	"Accept":
+					sock.Accept(&addr,&newsock) ; pass &addr param to extract addr of connected machine
+					OutputDebug "Server Accept`n`t" newsock.addr
+				Case	"Close":
+					OutputDebug "Server Close " A_LineNumber
+					sock.close()
+					Sleep	1000
+					Conectar(1,1)
+				Case	"Read":
+					Sleep	100
+					If !(buf := sock.Recv()).size ; Recebe o buffer, verifica o tamanho e retorna em buffer de tamanho zero
+						return
+					Sleep	100
+					retorno := StrGet(buf,"CP0")
+
+					Switch	{
+					
+						Case	InStr(retorno, '"cmd":"particoes"'):
+							OutputDebug	"Tem partições"
+						Case	InStr(retorno, '"cmd":"zonas"'):
+							OutputDebug	"Tem zonas"
+
+					}
+					
+					Outputdebug "Server Read:`n`t" StrReplace(retorno,"},{","},`n{")
+
+			}
+		Case	sock.name = "client-err":
+			OutputDebug "Server Error"
+			if(event = "connect") && err
+				msgbox sock.name ": " event ": err: " err 
+		Default:
+			OutputDebug "Server Default"
+			msgbox	sock.name
+
+	}
+
+}

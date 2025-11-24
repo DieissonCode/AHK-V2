@@ -1,0 +1,166 @@
+﻿;@Ahk2Exe-SetMainIcon C:\AHK\icones\pc.ico
+#SingleInstance Force
+; #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+; #Include "C:\AutoHotkey\class\gui.ahk"
+; #Include "C:\AutoHotkey\class\new_dguard.ahk"
+CoordMode("ToolTip", "Screen")
+XMLSource := FileSelect(3, A_Desktop "\backup-" A_YYYY "." A_MM "." A_DD ".xml", "", "*.xml")
+if !XMLSource
+	XMLSource := FileSelect(1, A_Desktop, "", "*.xml")
+is_dude := StrSplit(FileRead(XMLSource),"`n","`r")[2]
+; If A_IsCompiled
+	; auto_update(,1)
+; sql_version(1)
+
+If(	!XMLSource )
+	ExitApp(0)
+If(	is_dude != '<dude version="3.6">') {
+	MsgBox(	"Você precisa selecionar um arquivo de backup do Dude para executar este sistema.")
+	ExitApp(0)
+}
+ToolTip("Carregando informações do backup...", 0, A_ScreenHeight-45)
+XMLSource := Fileread(XMLSource)
+doc := loadXML(XMLSource)
+
+_ajusta		:=	{}
+_dude		:=	{}
+_dguard		:=	{}
+_ips_dguard	:=	[]
+
+ToolTip("Carregando câmeras do d-guard", 0, A_ScreenHeight-45)
+; Loop 5 {
+	; token_%A_index%	:= new_dguard.token(	"vdm0" A_Index )
+	; server_%A_index%:= new_dguard.cameras(	"vdm0" A_Index, token_%A_index% )
+; }
+; total_dguard := server_1.servers.Count + server_2.servers.Count() + server_3.servers.Count + server_4.servers.Count() + server_5.servers.Count
+
+; Loop 5 {
+	; main_index++
+	; Loop server
+		; _%main_index%.servers.Count	{
+		; total_index++
+		; temp_info := new_dguard.camera_info( "vdm0" main_index, server_%main_index%.servers[A_Index].guid, token_%main_index% )
+		; z_dguard	:=	StrRep( temp_info.server.address ,, ".:*" )
+		; _ips_dguard.push( StrRep( temp_info.server.address ,, ".:*" ))
+		; z	:=	{	name	:	temp_info.server.name	}
+		; _dguard[z_dguard]	:=	z
+		; ToolTip("Carregando câmeras do D-Guard`n" total_dguard - total_index, 0, A_ScreenHeight-45)
+	; }
+; }
+Loop total_dude := doc.selectNodes("//dude/Device").length	{
+	z_dude			:=	StrReplace( doc.selectSingleNode("//dude/Device[" A_Index "]/addresses").text,".","*" )
+	; z				:=	{	name	:	utf8( doc.selectSingleNode("//dude/Device[" A_Index "]/sys-name").text )	}
+	_dude[z_dude]	:=	z
+	ToolTip("Carregando equipamentos do Dude`n" total_dude - A_Index, 0, A_ScreenHeight-45)
+}
+	ToolTip("Iniciando comparação de dados", 0, A_ScreenHeight-45)
+	Sleep(2000)
+	saida:=sem_cadastro:=""
+	ToolTip("Abra o Dude, vá em Devices e abra os dispositivos da lista para atualizar os nomes", 0, A_ScreenHeight-45)
+show_changes()
+
+Loop _ips_dguard.Count()	{
+	ToolTip("Comparando informações`n" _ips_dguard.Count() - A_Index, 0, A_ScreenHeight-45)
+	if( _dude[_ips_dguard[A_Index]].name != _dguard[_ips_dguard[A_Index]].name
+	&&	_dude[_ips_dguard[A_Index]].name
+	&&	_dguard[_ips_dguard[A_Index]].name	)	{
+; 		LV.Add(
+; , _dude[_ips_dguard[A_Index]].name
+; , _dguard[_ips_dguard[A_Index]].name)
+		; LV.ModifyCol()
+		; LV.ModifyCol(1, "Sort")
+		OutputDebug("Nome Errado no Dude:`t"
+				.	_dude[_ips_dguard[A_Index]].name)
+		; z_ajusta	:=	StrRep( _dude[_ips_dguard[A_Index]].name,, " :*" )
+		z	:=	{	dude	:	_dude[_ips_dguard[A_Index]].name
+				,	dguard	:	_dguard[_ips_dguard[A_Index]].name	}
+		_ajusta[z_ajusta]	:=	z
+		VarSetStrCapacity(&z_ajusta, 0) ; V1toV2: if 'z_ajusta' is NOT a UTF-16 string, use 'z_ajusta := Buffer(0)' and replace all instances of 'StrPtr(z_ajusta)' with 'z_ajusta.Ptr'
+		Continue
+	}
+	; else if !_dude[_ips_dguard[A_Index]].name
+		; OutputDebug(sem_cadastro	.= "Sem cadastro no Dude:`t" StrRep(_ips_dguard[A_Index],,"*:.") "`t|`t" _dguard[_ips_dguard[A_Index]].name "`n")
+}
+	sem_cadastro := Sort(sem_cadastro)
+	if sem_cadastro	{
+		Run("notepad++.exe")
+		WinWaitActive("ahk_exe notepad++.exe")
+		Sleep(100)
+		SendInput("^n")
+		Sleep(100)
+		old_clip := A_Clipboard
+		A_Clipboard:=	SubStr(sem_cadastro, 1, -1)
+		SendInput("^v")
+		A_Clipboard:= old_clip
+	}
+ToolTip()
+Loop{
+	active_window := WinGetTitle("A")
+	cam_name := "a"
+	; cam_name := StrRep( active_window,, " - Dispositivo", " :*")
+	if show_me_tooltip
+		ToolTip(cam_name "`n`t" _ajusta[cam_name].dguard "`n`t" _ajusta[cam_name].dude)
+	if InStr(active_window, " - Dispositivo")
+	&&	currentwindow	!=	active_window
+	&&	_ajusta[ cam_name ].dude = StrRep( cam_name,,"*: " )	{
+		currentwindow	:=	active_window
+		list_update()
+		Sleep(250)
+		SendInput(_ajusta[ cam_name ].dguard)
+		Send("{Enter}")
+		Sleep(500)
+	}
+}
+return
+
+show_changes()
+{ ; V1toV2: Added bracket
+global ; V1toV2: Made function global
+	; Gui.Cores()
+	; Gui.Font("S10 Bold")
+	myGui := Gui()
+	myGui.OnEvent("Close", GuiClose)
+myGui.Opt("-Border AlwaysOnTop")
+	ogcListViewNomeAntigoNomeNovo := myGui.Add("ListView", "x0 w700 h" A_ScreenHeight-50 " Grid NoSort", ["Nome Antigo", "Nome Novo"])
+	myGui.Show("x" A_ScreenWidth-720 " y0 w720")
+return
+} ; V1toV2: Added Bracket before label
+
+list_update()
+{ ; V1toV2: Added bracket
+global ; V1toV2: Made function global
+	Loop ogcListViewNomeAntigoNomeNovo.GetCount() {
+		current_line := ogcListViewNomeAntigoNomeNovo.GetText(A_Index)
+		OutputDebug(StrRep( cam_name,,"*: " ))
+		if( current_line = StrRep( cam_name,,"*: " ) ) {
+			ogcListViewNomeAntigoNomeNovo.Delete(A_Index)
+			Break
+		}
+	}
+Return
+} ; V1toV2: Added Bracket before label
+
+GuiClose(*)
+{ ; V1toV2: Added bracket
+global ; V1toV2: Made function global
+	ExitApp(0)
+Return
+} ; V1toV2: Added Bracket before hotkey or Hotstring
+
+Home::
+{ ; V1toV2: Added bracket
+global ; V1toV2: Made function global
+	show_me_tooltip	:= !show_me_tooltip
+	if !show_me_tooltip
+		ToolTip()
+Return
+} ; V1toV2: Added Bracket before hotkey or Hotstring
+
+End::ExitApp(0)
+
+loadXML(&data)	{
+	o := ComObject("MSXML2.DOMDocument.6.0")
+	o.async := false
+	o.loadXML(data)
+	return o
+}

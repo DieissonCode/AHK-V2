@@ -1,0 +1,41 @@
+#Requires AutoHotkey v2.0
+file_ahk := FileSelect()
+if	!file_ahk
+	ExitApp
+
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Base64.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+
+;	Configurações
+	#SingleInstance Force
+	if	!DirExist( A_Desktop	'\Executáveis')
+		DirCreate( A_Desktop	'\Executáveis')
+	Try FileDelete( A_Desktop	'\Executáveis\Compile_AHK.log')
+	a	:=	FileRead(File_ahk)
+	ahk2exe	:=	'"C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe"'
+	file_in	:=	'/in "' file_ahk '"'
+	File_ahk:=	StrReplace(File_ahk, 'ahk2', 'ahk')
+	file_out:=	'/out "' A_Desktop	'\Executáveis\' (file_name := StrReplace(SubStr( File_ahk, InStr( File_ahk, "\",,-1 )+1 ), ".ahk", ".exe") ) '"'
+	file_log:=	'>> "' A_Desktop	'\Executáveis\Compile_AHK.log"'
+
+	if InStr(a, '#Requires AutoHotkey v2.0')	{
+		file_base	:=	'/base "C:\Program Files\AutoHotkey\v2\Autohotkey64.exe"'
+		silent		:=	''
+	}
+	Else
+		silent		:=	'/silent'
+
+;	Code
+	pre_clip := A_Clipboard
+	A_Clipboard := ahk2exe ' ' file_in ' ' file_out ' ' file_base ' ' file_log
+	Run('cmd')
+	WinWaitActive('cmd.exe'), Sleep(500), Send(A_Clipboard), Sleep(100), Send('{Enter}')
+	Loop
+		If(FileExist(A_Desktop '\Executáveis\'	file_name ) && FileExist( A_Desktop '\Executáveis\Compile_AHK.log' ))
+			Break
+	Sleep(500)
+	WinClose('cmd.exe')
+	Sleep(500)
+	Run(A_Desktop '\Executáveis')
+	Run(A_Desktop '\Executáveis\Compile_AHK.log')
+ExitApp()

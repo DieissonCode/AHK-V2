@@ -1,0 +1,60 @@
+﻿GdiplusStartup()	{
+	Local  StartupInput  :=  Buffer(24, 0)
+		,  pToken		:=  0
+
+	If (HasProp(GdiplusStartup, "pToken") = 0 || GdiplusStartup.pToken = 0 )
+		GdiplusStartup.hModule  :=  DllCall("Kernel32\LoadLibrary", "str","gdiplus.dll", "ptr")
+	,	Numput("char", 1, StartupInput)
+	,	DllCall("Gdiplus\GdiplusStartup", "ptrp",&pToken, "ptr",StartupInput, "ptr",0)
+	,	GdiplusStartup.pToken  :=  pToken
+
+	Return GdiplusStartup.pToken
+}
+
+
+GdiplusShutdown()	{
+	If (HasProp(GdiplusStartup, "pToken") && GdiplusStartup.pToken )
+		DllCall("Gdiplus\GdiplusShutdown", "ptr",GdiplusStartup.pToken)
+	,	GdiplusStartup.pToken  :=  0
+	,	DllCall("Kernel32\FreeLibrary", "ptr",GdiplusStartup.hModule)
+	,	GdiplusStartup.hModule :=  0
+
+	Return HasProp(GdiplusStartup, "pToken") And GdiplusStartup.pToken = 0
+}
+
+
+GdipCreateHBITMAPFromBuffer(Bin, Offset := 0)	{ ;  By SKAN for ah2 on D68A/D68G @ autohotkey.com/r/?p=533827
+	Local	pStream
+		,	pBitmap := 0
+		,	hBitmap := 0
+
+	; Note:  SHCreateMemStream() requires Vista and above
+	pStream  :=	DllCall("Shlwapi\SHCreateMemStream",			"ptr",Bin.Ptr + Offset,	"uint",Bin.Size - Offset,	"ptr")
+				DllCall("Gdiplus\GdipCreateBitmapFromStream",	"ptr",pStream,			"ptrp",&pBitmap)
+				DllCall("Gdiplus\GdipCreateHBITMAPFromBitmap",	"ptr",pBitmap,			"ptrp",&hBitmap,			"uint",0)
+				DllCall("Gdiplus\GdipDisposeImage", "ptr",pBitmap)
+	ObjRelease(pStream)
+
+	Return hBitmap
+}
+
+
+
+
+#Requires AutoHotkey v2.0
+#Warn
+#SingleInstance
+
+img  :=  A_WinDir "\Web\Wallpaper\Windows\img0.jpg" ; available in Win7, Win10, Win11
+img  :=  "C:\Users\dsantos\OneDrive - Cotrijal Cooperativa Agropecuária e Industrial\Área de Trabalho\Desktop\Imagens\people.jpg" ; available in Win7, Win10, Win11
+out  :=  FileRead(img, "RAW")
+MsgBox	
+GdiplusStartup()
+hBM  :=  GdipCreateHBITMAPFromBuffer(out)
+MsgBox
+GdiplusShutdown()
+
+MyGui := Gui(, A_OsVersion)
+MyGui.AddPicture("w-1 h720", "HBITMAP:" hBM)
+MyGui.Show()
+MyGui.OnEvent("Escape", (*) => ExitApp())

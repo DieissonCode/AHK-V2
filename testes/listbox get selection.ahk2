@@ -1,0 +1,32 @@
+﻿ListBoxGetChoice()
+ListBoxGetChoice2()
+
+ListBoxGetChoice() {
+	Global listbox1	;	Your gui is inside a function, so lets turn the listbox1 a global 
+    MyGui := Gui('AlwaysOnTop')
+    MyGui.AddText(, 'Select your category')
+    listbox1 := MyGui.AddListBox('r6', ['Select Me Option1', 'Select Me Option2', 'Select Me Option3'])
+    MyGui.AddButton('Default w80', 'Submit').OnEvent("Click", submit)	;	call submit button function
+    MyGui.Show('x0 y0 w400')
+
+}
+
+submit(ctrl, info)	{
+	
+	msgbox	listbox1.Text
+}
+
+;################
+
+ListBoxGetChoice2() {
+    MyGui := Gui('AlwaysOnTop')
+    MyGui.AddText(, 'Select your category')
+    MyGui.AddListBox('r6', ['Double Click Me Option1', 'Double Click Me Option2', 'Double Click Me Option3']).OnEvent("DoubleClick", listbox)	; call on double click an item
+    MyGui.Show('x500 y0 w400')
+
+}
+
+listbox(ctrl, info)	{
+	
+	msgbox	ctrl.Text
+}

@@ -1,0 +1,123 @@
+﻿#Requires AutoHotkey v2.0
+
+	;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.0.2.0
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = KAH - Atualizador de Fotos dos Colaboradores
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\foto.ico
+
+if A_LineFile = A_ScriptFullPath && !A_IsCompiled
+	{
+		myGui := Constructor()
+		myGui.Show("w858 h716")
+	}
+	
+	Constructor()
+	{	
+		myGui := Gui()
+		Global LV_ := myGui.Add("ListView", "x8 y8 w841 h698 +LV0x4000 +LV0x10000 Grid", ["Matricula", "Tamanho", "Tamanho SQL"])
+		LV_.ModifyCol(1, "Integer")
+		LV_.OnEvent("DoubleClick", LV_DoubleClick)
+		myGui.OnEvent('Close', (*) => ExitApp())
+		myGui.Title := "Window"
+		
+		LV_DoubleClick(LV, RowNum)
+		{
+			if not RowNum
+				return
+			ToolTip(LV.GetText(RowNum), 77, 277)
+			SetTimer () => ToolTip(), -3000
+		}
+		
+		return myGui
+	}
+
+;	Includes
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+	; #Include C:\AutoHotkey\class\sql.ahk
+
+;	Configurações
+	#SingleInstance Force
+
+s	:=	'
+	(
+	SELECT		[matricula],
+				[tamanho]
+	FROM		[Cotrijal].[dbo].[foto_colaborador]
+	ORDER BY	1
+	)'
+matricula	:= sql( s )
+matriculas	:= Map()
+Loop	matricula.Length-1 {
+	dict_name				:= "mat_" matricula[A_Index+1][1]
+	content					:= { size : matricula[A_Index+1][2] }
+	matriculas[dict_name]	:= content
+
+}
+
+Loop Files, '\\senior.cotrijal.local\Senior\temp\GP\*.jpg'	{
+	matricula	:= StrReplace(StrReplace(StrReplace(A_LoopFileName, '.' A_LoopFileExt), "1-1-"), "2-1-")
+	sql_size	:= matriculas.Has("mat_" matricula) ? matriculas["mat_" matricula].size : 0
+	LV_.Add(,matricula, A_LoopFileSize, sql_size)
+
+}
+
+; 	OutputDebug, %	matricula "`n`t"
+; 				.	A_LoopFileSizeKB "`n`t"
+; 				.	matriculas["mat_" matricula].size "`n`t"
+; 				.	A_LoopFileSize "`t" matriculas["mat_" matricula].size
+
+; 	If(	A_LoopFileSizeKB <= 5 ) || ( A_LoopFileSize = matriculas["mat_" matricula].size ) {
+; 		ToolTip,% matricula "`tJá possuí foto no banco de dados.", 50,% A_ScreenHeight-45
+
+; 		Continue
+
+; 	}
+
+; 	base_64	:= base64.FileEnc( A_LoopFileFullPath )
+; 	if	!base_64
+; 		Continue
+
+; 	tipo := ""
+; 	if( matriculas["mat_" matricula].size != A_LoopFileSize && matriculas["mat_" matricula].size != "" ) {
+
+; 		tipo = Atualizando
+; 		s =
+; 			(
+; 				UPDATE [Cotrijal].[dbo].[foto_colaborador]
+; 				SET	[binario]	= '%base_64%',
+; 					[tamanho]	= '%A_LoopFileSize%'
+; 				WHERE
+; 					[matricula]	= '%matricula%'
+; 			)
+
+; 	}
+; 	Else {
+
+; 		tipo := "Inserindo"
+; 		s =
+; 			(
+; 				INSERT INTO [Cotrijal].[dbo].[foto_colaborador]
+; 					(	 [matricula]
+; 						,[binario]
+; 						,[tamanho] )
+; 					VALUES
+; 					(	'%matricula%',
+; 						'%base_64%'
+; 						,'%A_LoopFileSize%' )
+; 			)
+
+; 	}
+	
+; 	ToolTip,% tipo " foto no banco de dados " matricula
+; 			. "`n`tSize FL = "	 A_LoopFileSize
+; 			. "`n`tSize DB = " matriculas["mat_" matricula].size
+; 			. "`n`t" A_index, 50,% A_ScreenHeight-45
+
+; 	retorno := sql( s )
+
+; }
+; ToolTip
+; ExitApp, 0

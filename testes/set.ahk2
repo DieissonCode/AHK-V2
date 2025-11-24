@@ -1,0 +1,6 @@
+﻿#Include ..\Sistema Monitoramento\libs\functions.ahk2
+#Include ..\Sistema Monitoramento\libs\Class\dguard.ahk2
+dgard := Dguard()
+token := dgard._token("vdm01","","")
+Dgard.disablePTZ("55C79666-6899-42AA-BF0B-6587D856C5D1", "vdm01", token )
+MsgBox

@@ -1,0 +1,15 @@
+﻿#Requires AutoHotkey v2.0+ 
+TextToSend := FileRead("textToSend.txt")
+lines := StrSplit(TextToSend, "`n")
+
+f1::{
+    Loop lines.Length
+        {
+        SetKeyDelay 10000
+        Send( lines[A_Index] '{Enter}')
+        Sleep 10000
+    }
+
+}
+
+END:: ExitApp 0

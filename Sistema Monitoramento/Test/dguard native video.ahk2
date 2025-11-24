@@ -1,0 +1,73 @@
+#Requires AutoHotkey v2.0
+#include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Dguard.ahk2
+class WinHttpRequest {
+    __New() {
+        ComObject("WinHttp.WinHttpRequest.5.1")
+    }
+    
+    Open(Method, URL, Async := false) {
+        this.WinHttpReq := ComObject("WinHttp.WinHttpRequest.5.1")
+        this.WinHttpReq.Open(Method, URL, Async)
+    }
+    
+    Send(Body := "") {
+        this.WinHttpReq.Send(Body)
+        try {
+            this.ResponseBody := StrGet(this.WinHttpReq.ResponseBody, "UTF-8")
+        } catch {
+            this.ResponseBody := this.WinHttpReq.ResponseBody
+        }
+        this.Status := this.WinHttpReq.Status
+    }
+    
+    SetRequestHeader(Header, Value) => this.WinHttpReq.SetRequestHeader(Header, Value)
+}
+
+class VideoStream {
+    __New(baseUrl) {
+        this.baseUrl := baseUrl
+        this.http := WinHttpRequest()
+    }
+
+    StartStream(serverId) {
+        Global token
+        url := this.baseUrl "/servers/%7B" serverId "%7D/cameras/0/native-video"
+        this.http.Open("GET", url)
+        this.http.SetRequestHeader("Authorization", "Bearer " token)
+        this.http.Send()
+        MsgBox this.http.Status
+        try {
+            this.http.Send()
+            if (this.http.Status != 200 && this.http.Status != 206)
+                throw Error("Connection error: " this.http.Status)
+                
+            this.ShowStream()
+        }
+        catch as err {
+            MsgBox A_Clipboard := err.Message
+        }
+    }
+    
+    ShowStream() {
+        gui := Gui("+Resize")
+        pic := gui.Add("Picture", "w640 h480")
+        gui.Show()
+        
+        while true {
+            try {
+                pic.Value := this.http.ResponseBody
+                Sleep(30)
+            }
+            catch as err {
+                break
+            }
+        }
+    }
+}
+
+stream := VideoStream("http://vdm02:8081")
+ token := Dguard._token('vdm02')
+if  token
+    stream.StartStream("7FF90391-ECAB-4F0C-AC18-64599BD0AED1")
+else
+    MsgBox "Login failed"

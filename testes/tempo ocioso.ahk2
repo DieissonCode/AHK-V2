@@ -1,0 +1,95 @@
+﻿InstallMouseHook
+InstallKeybdHook
+
+CliquesDoMouse := 0
+; SetTimer TecladoOcioso, 100  ; Define um temporizador para verificar a ociosidade a cada segundo
+SetTimer MouseOcioso, 100  ; Define um temporizador para verificar a ociosidade a cada segundo
+
+MouseOcioso()	{
+	Static	idle_time
+	Try
+		janela_atual := WinGetTitle("A")
+	Catch
+		janela_atual := ""
+	If	!IsSet(janela_atual)
+		janela_antiga := janela_atual
+
+	Switch	{
+	
+		Case	A_TimeIdleMouse  < 100:
+			OutputDebug	"Tempo sem movimentos do mouse	" Floor(Round(idle_time/1000))
+			idle_time	:=	0
+		
+		Default:
+			idle_time	:=	A_TimeIdleMouse
+			OutputDebug	idle_time
+
+	}
+	
+}
+
+TecladoOcioso()	{
+
+	Global	JanelaAnterior
+		,	CliquesDoMouse
+
+	JanelaAtual	:=	WinGetTitle("A")
+	
+	If	!IsSet(JanelaAnterior)
+		JanelaAnterior := JanelaAtual
+	; OutputDebug A_TimeIdleKeyboard
+	; OutputDebug CliquesDoMouse "`t" A_PriorKey "`t" A_ThisHotkey
+
+	Switch	{	;	registro de mudança de janela
+
+		Case	JanelaAtual != JanelaAnterior
+			&&	IsSet(JanelaAnterior):
+			OutputDebug	"Tempo ocioso:`n`t"  " segundos`n"
+					.	"Janela ativa:`n`t" JanelaAtual
+					; .	"Cliques do mouse:`n`t" CliquesDoMouse
+			JanelaAnterior	:=	JanelaAtual
+			TempoOcioso		:=	A_Now
+			; CliquesDoMouse	:=	0
+
+		; Case A_TimeIdlePhysical < 500:
+			; CliquesDoMouse	:=	++CliquesDoMouse
+
+		; Case A_TimeSincePriorHotkey:
+			; OutputDebug	A_TimeSincePriorHotkey
+
+	}
+
+	Switch	{	;	Contagem de cliques 
+
+		Case	JanelaAtual = JanelaAnterior
+			&&	IsSet(JanelaAnterior):
+			Try
+				if( A_PriorKey < 100 )
+					CliquesDoMouse	:=	++CliquesDoMouse
+
+
+	}
+
+}
+
+Janela(antiga, nova)	{
+
+	Switch	{
+	
+		Case	antiga != nova:
+			return	1
+
+		Default:
+			return	0
+	
+	}	
+
+}
+
+keyboard()	{
+
+}
+
+mouse()	{
+	
+}

@@ -1,0 +1,57 @@
+﻿#Requires AutoHotkey v2
+;#include <UIA> ; Uncomment if you have moved UIA.ahk to your main Lib folder
+#include ..\Lib\UIA.ahk
+;#include <UIA_Browser> ; Uncomment if you have moved UIA_Browser.ahk to your main Lib folder
+#include ..\Lib\UIA_Browser.ahk
+; t := 'Type: 50030 (Document) Name: "Formatação de texto profissional" Value: '
+	; . '"https://chatgpt.com/c/96724a8d-ab3d-4430-a9da-8289e6d70586" LocalizedType: "documento" AutomationId: "164140864" ClassName: "Chrome_RenderWidgetHostHWND"'
+; _ := obejectit(t)
+; MsgBox _['Value']
+/**
+ * This example starts a new Chrome window and then gets the Document element content into the Clipboard.
+ */
+
+; Run in Incognito mode to avoid any extensions interfering.
+F2::	{
+	WinWaitActive "ahk_exe chrome.exe"
+	cUIA := UIA_Browser()
+	A_Clipboard := ""
+	A_Clipboard := cUIA.GetCurrentDocumentElement().DumpAll() 
+	ClipWait 1
+	if A_Clipboard
+		tryit(StrSplit(A_Clipboard, '`n'))
+	ExitApp
+}
+F1::	{
+	WinWaitActive "ahk_exe chrome.exe"
+	cUIA := UIA_Browser()
+	cUIA.FindElement({Type:"50026", AutomationId:"prompt-textarea"}).value := "O mano chegou e fez o furto, não deu tempo de prende-lo"
+	Sleep 250
+	cUIA.FindElement({Name:"Enviar prompt", LocalizedType:"botão"}).Click()
+}
+
+tryit(_*)	{
+	Loop _.Length
+			Loop _[Aindex := A_index].Length	{
+				MsgBox	_[Aindex][A_index]
+				obejectit(_[Aindex][A_index])
+			}
+}
+
+obejectit(_)	{
+	OutputDebug	_
+	if !IsSet(_)
+		Return
+	local_map := Map()
+	; RegExMatch(_, '(?<!"):(?!")', &__)
+	__ := StrSplit(_, ': ' )
+	Loop __.Length	{
+		OutputDebug	__[A_Index]
+		; ___ := StrSplit(__[A_Index], ': ')
+		; OutputDebug	___[1] "`t" StrReplace(___[2], '"')
+		; local_map.Set(___[1], StrReplace(___[2], '"'))
+	}
+	MsgBox
+Return local_map
+
+}

@@ -1,0 +1,224 @@
+﻿/*
+	File_Version=0.1.0
+	Save_To_Sql=1
+	Keep_Versions=1
+	Development=1
+	Software_Name=configurador de Preset's
+	Dont_Increment=0
+*/
+#Requires AutoHotkey v2.0
+
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\pc.ico
+
+;	Includes
+	#Include ..\Sistema Monitoramento\libs\class\dguard.ahk2
+	#Include ..\Sistema Monitoramento\libs\class\json.ahk2
+	#Include ..\Sistema Monitoramento\libs\functions.ahk2
+	; #Include C:\AutoHotkey\class\functions.ahk
+	; #Include C:\AutoHotkey\class\gui.ahk
+	dg := dguard()
+
+;	Configurações
+	#SingleInstance Force
+	logged_in := 0
+login()
+	Loop 
+		if(logged_in = 1)
+			Break
+		Else if(logged_in = 2)
+			ExitApp 0
+interface()
+
+login()	{
+	Global	b, exiting := 1
+	SetTimer auto_exit, 30000
+	b := Gui('AlwaysOnTop')
+	b.Add('Edit', 'x10 y10	vuser')
+	b.Add('Edit', 'x10		vpass Password')
+	b.Show()
+	b.Title := 'Login'
+}
+
+auto_exit()	{
+	if	!exiting
+		Return
+	ExitApp 0
+}
+
+interface()	{
+	SetTimer auto_exit, 0
+	exiting := 0
+	global a, guid, server, id
+	head:= ['Nome da Câmera','Guid','Server']
+	a	:= Gui('AlwaysOnTop')
+	a.Add('Edit','		x10	y10	w204	h30						Section ', ''		).OnEvent('Change',focusLine)
+	a.Add('ListView','	xs		w204	R9		-HDR	vCam	Grid	', head		).OnEvent('Click', selectCam)
+	a.Add('Radio','			ys	w40		h40		0x1000			Section	', '7'		).OnEvent('Click', showDirection)
+	a.Add('Radio','			ys	w40		h40		0x1000					', '8'		).OnEvent('Click', showDirection)
+	a.Add('Radio','			ys	w40		h40		0x1000					', '9'		).OnEvent('Click', showDirection)
+	a.Add('Radio','		xs		w40		h40		0x1000			Section	', '4'		).OnEvent('Click', showDirection)
+	a.Add('Radio','			ys	w40		h40		0x1000					', '5'		).OnEvent('Click', showDirection)
+	a.Add('Radio','			ys	w40		h40		0x1000					', '6'		).OnEvent('Click', showDirection)
+	a.Add('Radio','		xs		w40		h40		0x1000			Section	', '1'		).OnEvent('Click', showDirection)
+	a.Add('Radio','			ys	w40		h40		0x1000					', '2'		).OnEvent('Click', showDirection)
+	a.Add('Radio','			ys	w40		h40		0x1000					', '3'		).OnEvent('Click', showDirection)
+	a.Add('Text','		xs		w140	h20		0x1000	vTIP	Center	', ''		)
+	a.Add('Button','	w140	h30										', 'Definir').OnEvent('Click', setPreset)
+	
+	a.Show()
+	WinSetEnabled 0, A
+	loadGuids()
+	WinSetEnabled 1, A
+	return
+
+	focusLine(ctrl, z)	{
+		Global All
+		Search_Delay()
+		OutputDebug		ctrl.Text
+		filter 		:=	ctrl.Text
+		filter_map	:=	Map()
+		a['cam'].Delete()
+		if	ctrl.text	{
+			__ := all.Filter(filter, filter_map)
+			Loop __.Count	{
+				a['cam'].Add(
+					, __[A_Index].name
+					, __[A_Index].guid
+					, __[A_Index].server)
+			}
+		}
+		Else
+			Loop all.Count	{
+				a['cam'].Add(
+				, all[A_Index].name
+				, all[A_Index].guid
+				, all[A_Index].server	)
+			}
+		a['cam'].ModifyCol(1,"Sort")
+
+	}
+
+	showDirection(ctrl,nothing)	{
+		Switch	ctrl.Text	{
+		
+			Case 1:
+				a['TIP'].Value	:= 'Posição Sudoeste'
+				id				:=	9
+			Case 2:
+				a['TIP'].Value := 'Posição Sul'
+				id				:=	10
+			Case 3:
+				a['TIP'].Value := 'Posição Sudeste'
+				id				:=	11
+			Case 4:
+				a['TIP'].Value := 'Posição Oeste'
+				id				:=	12
+			Case 5:
+				a['TIP'].Value := 'Posição Default'
+				id				:=	0
+			Case 6:
+				a['TIP'].Value := 'Posição Leste'
+				id				:=	13
+			Case 7:
+				a['TIP'].Value := 'Posição Noroeste'
+				id				:=	14
+			Case 8:
+				a['TIP'].Value := 'Posição Norte'
+				id				:=	15
+			Case 9:
+				a['TIP'].Value := 'Posição Nordeste'
+				id				:=	16
+
+		}
+		dg.cameraPreset( 'vdm0' server, guid, id, token0%server%, 1 )
+
+	}
+
+	selectCam(ctrl,row)	{
+		guid	:=	a['cam'].GetText(row , 2)
+		server	:=	a['cam'].GetText(row , 3)
+		OutputDebug	guid "`n`t" server
+	}
+
+	setPreset(ctrl,x)	{
+		If !IsSet(id)	{
+			MsgBox('Você precisa selecionar a posição no teclado numérico do preset a ser salvo.')
+			Return
+		}
+
+		If	dg.cameraPreset( 'vdm0' server, guid, id, token0%server% )	{
+			ToolTip 'Preset definido com sucesso!', 0, 0
+		 	Sleep 2000
+			ToolTip
+		}
+		Else	{
+			ToolTip 'Câmera selecionada não possuí parâmetros de presets configuráveis!', 0, 0
+		 	Sleep 2000
+			ToolTip
+		}
+
+	}
+
+}
+
+loadGuids()	{
+	ToolTip 'Carregando informações das câmeras, aguarde!', 0, 0
+	a['cam'].ModifyCol(1, 180)
+	a['cam'].ModifyCol(2, 0)
+	a['cam'].ModifyCol(3, 0)
+	Global	token01	:=	dg._token("vdm01","admin","admin")
+		,	token02	:=	dg._token("vdm02","admin","admin")
+		,	token03	:=	dg._token("vdm03","admin","admin")
+		,	token04	:=	dg._token("vdm04","admin","admin")
+		,	token05	:=	dg._token("vdm05","admin","admin")
+		,	all		:=	Map()
+
+	vdm01	:=	json.parse(dg.cameras("vdm01",token01))['servers']
+	vdm02	:=	json.parse(dg.cameras("vdm02",token02))['servers']
+	vdm03	:=	json.parse(dg.cameras("vdm03",token03))['servers']
+	vdm04	:=	json.parse(dg.cameras("vdm04",token04))['servers']
+	vdm05	:=	json.parse(dg.cameras("vdm05",token05))['servers']
+	many	:=	0
+	Loop	5	{
+		index := A_index
+		Loop	vdm0%Index%.Length	{
+			__ :=vdm0%Index%[A_Index]
+			switch  {
+				; case vdm0%Index%[A_Index]['connected'] = 1 && dg.cameraPTZ("vdm0" index, vdm0%Index%[A_Index]['guid'], token0%index%)['enabled']:
+				case vdm0%Index%[A_Index]['connected'] = 1 && dg.cameraPTZ("vdm0" index, vdm0%Index%[A_Index]['guid'], token0%index%, vdm0%Index%[A_Index]['name']):
+					a['cam'].Add(
+						, vdm0%Index%[A_Index]['name']
+						, vdm0%Index%[A_Index]['guid']
+						, index	)
+					many++
+					OutputDebug	 vdm0%Index%[A_Index]['name']
+					all[many] := { guid : vdm0%Index%[A_Index]['guid'], server : index, name : vdm0%Index%[A_Index]['name'] }
+
+				default:
+					Continue
+			}
+
+
+		}
+		a['cam'].ModifyCol(1,"Sort")
+		ToolTip 'Câmeras do servidor ' Index ' carregadas.', 0, 0
+	}
+	ToolTip 'Todas as câmeras carregadas.', 0, 0
+	Sleep 1000
+	ToolTip
+
+}
+
+#HotIf	WinActive('Login')
+	Enter::	{
+		Global logged_in
+		if(b['pass'].Text = 'tq8hSKWzy5A' && b['user'].Text = 'admin')	{
+			logged_in := 1
+			b.Destroy()
+		}
+		Else
+			logged_in := 2
+
+	}
+	#HotIf
+;	http://192.9.100.106:8081/api/servers/%7BE995CFE3-E86E-46DD-8475-F08CC26ACD5D%7D/cameras/0/ptz/presets/9/define

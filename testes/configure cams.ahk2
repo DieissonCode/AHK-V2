@@ -1,0 +1,33 @@
+﻿#Requires AutoHotkey v2.0
+
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\http.ahk2
+
+h := Http()
+s := '
+	(
+	SELECT	[name]
+		,	[ip]
+	FROM	[Dguard].[dbo].[cameras]
+	WHERE (
+	name like 'VGR%' or
+	name like 'LTC%' or
+	name like 'MOR%' or
+	name like 'MAC%' or
+	name like 'MCA%' or
+	name like 'CXA%' or
+	name like 'PFU%' or
+	name like 'SAP%' or
+	name like 'VLI%'	)
+	AND ( VENDORMODEL like '%dahua%' or VENDORMODEL like '%intel%' )
+	ORDER BY 1
+	)'
+__ := sql(s)
+Loop __.Length-1	{
+	url1 := 'http://admin:tq8hSKWzy5A@' __[A_Index+1][2] '/cgi-bin/configManager.cgi?action=getConfig&name=Ptz'
+	url2 := 'http://admin:tq8hSKWzy5A@' __[A_Index+1][2] '/cgi-bin/configManager.cgi?action=setConfig&Encode[0].MainFormat[0].Video.BitRate=' 
+	OutputDebug( ( bitrate := InStr(h.request(url1), 'Bad request') ? 1024 : 1536) ' ' StrReplace(StrReplace(h.request(url2 bitrate), '`n'), '`r') '`t' __[A_Index+1][1])
+	Sleep(100)
+
+}
+ExitApp(0)

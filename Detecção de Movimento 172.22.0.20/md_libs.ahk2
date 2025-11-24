@@ -1,0 +1,704 @@
+﻿Global	sql_le			:=	''
+	,	sql_lq			:=	''
+	,	ShowData		:=	''
+	,	tray_bg_color	:=	"9BACC0"
+	,	monitor_w		:=	''
+	,	monitor_h		:=	''
+	,	work_h			:=	''
+
+auto_update( internal_name:='', auto_restart:='0' ) {
+	email := Mail()
+	base := Base64()
+	software := !internal_name ? SubStr( A_ScriptName, 1, InStr(A_ScriptName,'.')-1 ) : internal_name
+	If	FileExist( A_ScriptDir '\' software '_new.exe' )
+		Goto update_assync
+
+	s :=
+		(
+			"SELECT	TOP(1)"
+			"		[name],"
+			"		[bin],"
+			"		[version]"
+			"	FROM"
+			"		[ASM].[dbo].[Softwares]"
+			"	WHERE"
+			"		[name] = '" software "'"
+			"	AND"
+			"		LEN([bin]) > 10"
+			"	ORDER BY"
+			"		[PKID]"
+			"	DESC "
+		)
+	s	:=	sql(s)
+
+	if(	s.Length-1 = 0 )
+		Return 'Sem atualização disponível.'
+
+	Version_File := FileGetVersion( A_ScriptDir '\' software '.exe')
+	If(Version_File = '1.1.33.2')
+		Version_File := '0.0.0.1'
+
+	version_sql := StrSplit( s[2][3], '.' )
+	Version_File:= StrSplit( Version_File, '.' )
+
+	OutputDebug	version_sql.Length '`t'
+			.	version_sql[1] '`t'
+			.	version_sql[2] '`t'
+			.	version_sql[3] '`t'
+			.	version_sql[4] '`n'
+			.	Version_File.Length '`t'
+			.	Version_File[1] '`t'
+			.	Version_File[2] '`t'
+			.	Version_File[3] '`t'
+			.	Version_File[4]
+
+			Switch	{
+				Case version_sql[1] > Version_File[1]: Goto autoupdate
+				Case version_sql[2] > Version_File[2]: Goto autoupdate
+				Case version_sql[3] > Version_File[3]: Goto autoupdate
+				Case version_sql[4] > Version_File[4]: Goto autoupdate
+				Default: Return Version_File
+			}
+
+	autoupdate:
+		ToolTip('Update em andamento', 0, A_ScreenHeight-45 )
+		; base64.FileDec( sql[ 2, 2 ], A_ScriptDir "\" software "_new.exe" )
+
+		Loop	{
+			Sleep(500)
+			If	FileExist( A_ScriptDir '\' software '_new.exe' )	;	se criou o novo executável, sai do loop para atualizar
+				Break
+
+			Else If ( A_Index > 20 ) {	;	se não criou o executável após 25 segundos, retorna falha e interrompe a atualização
+				fail := 1
+				email.new(	"dsantos@cotrijal.com.br"
+					,	"Falha ao atualizar o software " software
+					,	"Falha ao atualizar o software " software " na máquina " SysGetIPAddresses()[1] ", usuário logado " A_UserName " em " datetime() ", para a versão " sql[2][3] "`n`nNão criou o arquivo novo." )
+				Break
+			}
+		}
+		if	Fail	;	se não criou executável, retorna mensagem de falha 
+			Return
+
+	update_assync:
+		update_software	:='
+			(
+				"MsgBox('teste')"
+				"ExitApp(0)"	
+			)'
+		new_instance( update_software )
+		ExitApp
+}
+
+datetime( sql:=0, date:='', format:='ymd' ) {
+	sql	:= RegExReplace( sql, '[^\d]+' )
+	date:= RegExReplace( date, '[^\d]+' )
+	if Strlen( sql ) = 14	;	 se a data foi passada no campo de sql, ajusta as variáveis
+		is_date:=sql, sql:=0, date:=is_date
+
+	Switch	{
+		; Case sql && date && format="dmy":
+			; return	RegExReplace(date, "(....)(..)(..)(..)(..)(..)", "$1-$2-$3 $4:$5:$6.000")
+
+		; Case sql && date && format="dym":
+			; return	RegExReplace(date, "(....)(..)(..)(..)(..)(..)", "$1-$2-$3 $4:$5:$6.000")
+
+		Case sql && date && format='ymd':
+			return	RegExReplace(date, '(....)(..)(..)(..)(..)(..)', '$1-$2-$3 $4:$5:$6.000')
+
+		; Case sql && date && format="ydm":
+			; return	RegExReplace(date, "(....)(..)(..)(..)(..)(..).000", "$1-$2-$3 $4:$5:$6.000")
+
+		; Case sql && date && format="mdy":
+			; return	RegExReplace(date, "(....)(..)(..)(..)(..)(..).000", "$1-$2-$3 $4:$5:$6.000")
+
+		; Case sql && date && format="myd":
+			; return	RegExReplace(date, "(....)(..)(..)(..)(..)(..).000", "$1-$2-$3 $4:$5:$6.000")
+
+		Case sql && !date:
+			return	RegExReplace(A_now, '(....)(..)(..)(..)(..)(..)', '$3-$2-$1 $4:$5:$6.000')
+
+		Case !sql && !date:
+			return	RegExReplace(A_now, '(....)(..)(..)(..)(..)(..)', '$1-$2-$3 $4:$5:$6')
+
+		Case !sql && date:
+			return	RegExReplace(date, '(....)(..)(..)(..)(..)(..)', '$1-$2-$3 $4:$5:$6')
+
+	}
+
+}
+
+debug( linha, params* ) {
+
+	for i, v in params
+		{
+
+			if( v = 'HIDE')
+				hide_mode := 1
+			Else
+				output .= v '`n`t'
+
+		}
+	if	!IsSet(hide_mode) {
+
+		output := SubStr(output, 1)
+		OutputDebug(SubStr( output, 1, -2 ) '`n`tLinha:`t' linha)
+	
+	}
+	hide_mode := ''
+
+}
+
+; has_Error( function ) {
+	; Try
+		; Mail.New( "dsantos@cotrijal.com.br", "Detecção de Movimento - Erro na função " function, "Erro`n`t'" ErrorLevel "'`nna função`n`t" function )
+	; Return
+; }
+
+http( url, method:='get', auth:='' ) {	;	https://www.autohotkey.com/boards/viewtopic.php?style=19&t=86128
+	r := ComObject( 'Msxml2.XMLHTTP' )
+	r.Open( method, url, false )
+	r.SetRequestHeader( 'Content-Type', 'application/json' )
+	if	auth
+		r.SetRequestHeader( 'Authorization', 'bearer ' auth )
+	r.SetRequestHeader( 'If-Modified-Since', 'Sat, 1 Jan 2000 00:00:00 GMT' )
+	r.Send()
+	return r.responseText
+
+}
+
+new_instance( Script )	{
+	shell:= ComObject( 'WScript.Shell' )
+	exec := shell.Exec( A_AhkPath ' /ErrorStdOut *')
+	exec.StdIn.Write( script )
+	exec.StdIn.Close()
+
+}
+
+process_Exist( process, pause:='0', server:='.' ) {
+	for objItem in ComObjGet('winmgmts:\\' server '\root\CIMV2').ExecQuery("SELECT * FROM Win32_Process WHERE Caption = '" StrRep(process,,'.exe') ".exe'")
+	{
+		if	Pause	{
+			passed:= A_Now-SubStr( objItem.CreationDate, 1, 14 ) > pause ? 1 : pause - (A_Now - SubStr( objItem.CreationDate, 1, 14 ))
+			Sleep(passed '000')
+		}
+		return	StrLen( objItem.Caption ) = 0 ? 0 : 1
+	}
+	return 0
+
+}
+
+StrRep( haystack , separator:=':', needles* )	{
+	for i, v in needles
+	{
+		if ( InStr( v , separator ) > 0 )	{
+			SearchText	:= SubStr( v, 1 , InStr( v , separator )-1 )	
+			ReplaceText := SubStr( v,InStr( v , separator )+1 )
+		}
+		Else	{
+			SearchText	:=	v
+			ReplaceText	:=	''
+		}
+		haystack := StrReplace( haystack, SearchText , ReplaceText )
+	}
+	Return haystack
+
+}
+
+sql(Query_Statement)	{
+	; ListLines(0)
+	If(	InStr( Query_Statement, 'UPDATE') > 0 && InStr( Query_Statement, 'WHERE' ) = 0 )	{
+		result :=MsgBox(4 , ,'Você está tentando executar um UPDATE sem definir WHERE, deseja realmente continuar? Isso alterará TODOS os dados da tabela.`n`n`n' Query_Statement)
+		If(result = 'No')
+			return
+	}
+	if(!Query_Statement)
+		Return	'EMPTY'
+	coer := ''
+	txtout := 0
+	rd := '`n'
+	cd := 'CSV'
+	str := 'Driver={SQL Server};Server=srvvdm-bd\ASM;Uid=ahk;Pwd=139565Sa'
+	o3DA := []
+
+	; Examine the connection string for output formatting options.
+	If ( 9 < oTbl := 9 + InStr(";" str, ";RowDelim=") ){
+		rd := SubStr(str, (oTbl)<1 ? (oTbl)-1 : (oTbl), 0 - oTbl + oRow := InStr(str ";", ";", 0, (oTbl)<1 ? (oTbl)-1 : (oTbl)))
+		str := SubStr(str, 1, oTbl - 11) SubStr(str, (oRow)<1 ? (oRow)-1 : (oRow))
+		txtout := 1
+	}
+	If ( 9 < oTbl := 9 + InStr(";" str, ";ColDelim=") ){
+		cd := SubStr(str, (oTbl)<1 ? (oTbl)-1 : (oTbl), 0 - oTbl + oRow := InStr(str ";", ";", 0, (oTbl)<1 ? (oTbl)-1 : (oTbl)))
+		str := SubStr(str, 1, oTbl - 11) SubStr(str, (oRow)<1 ? (oRow)-1 : (oRow))
+		txtout := 1
+	}
+
+	Try	{
+		oCon := ComObject("ADODB.Connection")	; Create ADOSQL Object
+		oCon.ConnectionTimeout := 9 			; Allow 9 seconds to connect to the server.
+		oCon.CursorLocation := 3 				; Use a client-side cursor server.
+		oCon.CommandTimeout := 1800 			; A generous 30 minute timeout on the actual SQL statement.
+		oCon.Open( str ) 						; open the connection.
+		oRec := oCon.execute( ADOSQL_LastQuery := Query_Statement )
+
+		While IsObject( oRec ){
+			If !oRec.State ; Recordset.State is zero if the recordset is closed, so we skip it.
+				oRec := oRec.NextRecordset()
+			Else{ ; A row-returning operation returns an open recordset
+				oFld := oRec.Fields
+				o3DA.Push( oTbl := [] )
+				oTbl.Push( oRow := [] )
+
+				Loop oFld.Count ; Put the column names in the first row.
+					oRow.Push(oFld.Item[ A_Index - 1 ].Name)
+				
+				While !oRec.EOF{ ; While the record pointer is not at the end of the recordset...
+					oTbl.Push( oRow := [] )
+					Loop oFld.Count
+						oRow.Push(oFld.Item[ A_Index - 1 ].Value)
+					oRec.MoveNext() ; move the record pointer to the next row of values
+				}
+				oRec := oRec.NextRecordset() ; Get the next recordset.
+			}
+		}
+		If (txtout){ ; If the user wants plaintext output, copy the results into a string
+			Query_Statement := "x"
+			Loop o3DA.Length{
+				Query_Statement .= rd rd
+				oTbl := o3DA[ A_Index ]
+				Loop oTbl.Length{
+					oRow := oTbl[ A_Index ]
+					Loop oRow.Length
+						If ( cd = "CSV" ){
+							str := oRow[ A_Index ]
+							str := StrReplace(str, "`"", "`"`"")
+							If !ErrorLevel || InStr(str, ",") || InStr(str, rd)
+								str := "'" str "'"
+							Query_Statement .= ( A_Index = 1 ? rd : "," ) str
+						}
+						Else
+							Query_Statement .= ( A_Index = 1 ? rd : cd ) oRow[ A_Index ]
+				}
+			}
+			Query_Statement := SubStr(Query_Statement, (2 + 3 * StrLen( rd ))<1 ? (2 + 3 * StrLen( rd ))-1 : (2 + 3 * StrLen( rd )))
+		}
+
+		; Close the connection and return the result. Local objects are cleaned up as the function returns.
+		oCon.Close()
+		ErrorLevel := coer
+		Return txtout ? Query_Statement : o3DA.Length = 1 ? o3DA[1] : o3DA
+	}
+	catch as e{ ; Oh NOES!! Put a description of each error in 'ADOSQL_LastError'.
+		A_Clipboard := ADOSQL_LastQuery
+		MsgBox("Exception thrown!`n`nwhat: " e.what "`n`nfile: " e.file "`n`nline: " e.line "`n`nmessage: " e.message "`n`nextra: " e.extra,, 16)
+		
+		oErr := oCon.Errors ; > https://www.w3schools.com/asp/ado_ref_error.asp
+		Query_Statement := 'x'
+		Loop oErr.Count
+		{
+			oFld := oErr.Item( A_Index - 1 )
+			str := oFld.Description
+			Query_Statement .= "`n`n`n" SubStr(str, (1 + InStr(str, "]", 0, (2 + InStr(str, "][", 0, -1))<1 ? (2 + InStr(str, "][", 0, -1))-1 : (2 + InStr(str, "][", 0, -1))))<1 ? (1 + InStr(str, "]", 0, (2 + InStr(str, "][", 0, -1))<1 ? (2 + InStr(str, "][", 0, -1))-1 : (2 + InStr(str, "][", 0, -1))))-1 : (1 + InStr(str, "]", 0, (2 + InStr(str, "][", 0, -1))<1 ? (2 + InStr(str, "][", 0, -1))-1 : (2 + InStr(str, "][", 0, -1))))) . "`n   Number: " oFld.Number . ", NativeError: " oFld.NativeError . ", Source: " oFld.Source . ", SQLState: " oFld.SQLState . ", User: " A_UserName . ", Date: " FormatTime(A_Now)
+		}
+		ADOSQL_LastError := SubStr(Query_Statement, 4)
+		FileAppend(ADOSQL_LastError, "ADOSQLErrorLog.txt")
+		Query_Statement := ''
+		txtout := 1
+		MsgBox
+		Return o3DA
+	}
+}
+
+sql_version( show_IconTip:='1', custom_name:='', uptime:='' )	{
+	If	!uptime
+		uptime := datetime()
+	script_name	:=	!custom_name
+				?	StrRep( A_ScriptName,, A_IsCompiled ? '.exe' : '.ahk2' )
+				:	custom_name
+	s	:=
+		(
+			"	SELECT TOP (1)"
+			"		[version],"
+			"		[date],"
+			"		[pkid]"
+			"	FROM"
+			"		[ASM].[dbo].[Softwares]"
+			"	WHERE"
+  			"		[name] = '" script_name "'"
+  			"	ORDER BY"
+			"	  	3"
+			"	DESC"
+		)
+
+	o	:= sql( s )
+	; file_version:=	FileGetVersion(A_ScriptFullPath)
+	; file_version:=	StrSplit(file_version, '.')
+	; compilation	:=	FileGetTime(A_ScriptFullPath)
+	if	!IsSet(file_version)
+		file_version := [0,0,0,0]
+	if	show_IconTip {
+			A_IconTip := script_name "   -   Compilação: " 
+			.	"`nVersão SQL:	" o[2][1]
+			.	"`nVersão EXE:	" file_version[1] "." file_version[2] "." file_version[3] "." file_version[4]
+			.	"`nExecutando:	" uptime
+		Return
+
+	}
+	Else
+		Return	[o[2,1], o[2,2]]
+
+	MenuHandler(ItemName, ItemPos, MyMenu) {
+		MsgBox "You selected " ItemName " (position " ItemPos ")"
+	}
+}
+
+; wm_Read(wParam, lParam)	{
+;     StringAddress := NumGet(lParam + 2 * A_PtrSize, 'Ptr ')	; Retrieves the CopyDataStruct's lpData member.
+;     If StrGet(StringAddress)						; Copy the string out of the structure.
+; 		ShowData := 1
+; 	Else
+; 		ShowData := 0
+;     return true										; Returning the message
+; }
+
+; wm_Send(&StringToSend, &TargetScriptTitle)	{	; ByRef saves a little memory in this case.
+; 	/*
+; 	This function sends the specified string to the specified window and returns the reply.
+; 	The reply is 1 if the target window processed the message, or 0 if it ignored it.
+;  	*/
+; 	local CopyDataStruct := ''
+; 	VarSetStrCapacity(&CopyDataStruct, 3*A_PtrSize) 			; Set up the structure's memory area.
+; 															; First set the structure's cbData member to the size of the string, including its zero terminator:
+; 	SizeInBytes := (StrLen(StringToSend) + 1) * 2
+; 	NumPut(SizeInBytes, CopyDataStruct, A_PtrSize)			; OS requires that this be done.
+; 	NumPut(&StringToSend, CopyDataStruct, 2*A_PtrSize)		; Set lpData to point to the string itself.
+; 	Prev_DetectHiddenWindows := A_DetectHiddenWindows
+; 	Prev_TitleMatchMode := A_TitleMatchMode
+; 	DetectHiddenWindows(1)
+; 	SetTitleMatchMode 2
+; 	TimeOutTime := 5000 									; Optional. Milliseconds to wait for response from receiver.ahk. Default is 5000
+; 															; Must use SendMessage not PostMessage.
+; 	ErrorLevel := SendMessage(0x004A, 0, &CopyDataStruct,, TargetScriptTitle,,,, TimeOutTime) ; 0x004A is WM_COPYDATA.
+; 	DetectHiddenWindows Prev_DetectHiddenWindows 			; Restore original setting for the caller.
+; 	SetTitleMatchMode Prev_TitleMatchMode					; Same.
+; 	return ErrorLevel										; Return SendMessage's reply back to our caller.
+; }
+
+Class Base64 {
+
+	Enc(&Src)                                                        ;  By SKAN for ah2 on D672/D672 @ autohotkey.com/r?p=534720
+	{
+		Local  Bytes  :=  Src.Size
+			,  RqdCap :=  1 + (( Ceil(Bytes*4/3) + 3 ) & ~0x03)
+			,  Trg    :=  ""
+
+		VarSetStrCapacity(&Trg, RqdCap - 1)
+		DllCall("Crypt32\CryptBinaryToString", "ptr",Src, "int",Bytes, "int",0x40000001, "str",Trg, "intp",&RqdCap)
+
+	Return Trg
+	}
+
+	; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	Dec(&Src)                                                        ;  By SKAN for ah2 on D672/D672 @ autohotkey.com/r?p=534720
+	{
+		Local  EqTo    :=  (SubStr(Src,-2,1) = "=") + (SubStr(Src,-1) = "=")   ;  = count
+			,  nBytes  :=  (StrLen(Src) - EqTo) * 3 // 4                       ;  Target bytes
+			,  Trg     :=  Buffer(nBytes)
+
+		DllCall("Crypt32\CryptStringToBinary", "str",Src, "int",StrLen(Src), "int",0x1, "ptr",Trg, "intp",&nBytes, "int",0, "int",0 )
+
+	Return Trg
+	}
+
+	; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	FileEnc(&Src)                                                     ;  By SKAN for ah2 on D672/D672 @ autohotkey.com/r?p=534720
+	{
+		Static mCode
+		If  Not IsSet(mCode)
+		{
+			mCode := Buffer(352 + 64, 0)
+
+			If  ( A_PtrSize =  8 )  ;  x64 size:349
+				NumPut("int64",0x4156415441575653, "int64",0x548b445824448b57, "int64",0xc08545db31456024, "int64",0xdb3100000098860f
+					, "int64",0xdf893234b60fde89, "int64",0xdc8941013a7cb60f, "int64",0x8941022264b60f46, "int64",0xf6894502eec141f6
+					, "int64",0x47df894531348a46, "int64",0x8341f68941393488, "int64",0x894104e6c14103e6, "int64",0xfe094504efc141ff
+					, "int64",0x4531348a46f68945, "int64",0x410239748847df89, "int64",0xc1410fe68341fe89, "int64",0xefc141e7894502e6
+					, "int64",0x46f68945fe094506, "int64",0x8847df894531348a, "int64",0x8341e48945043974, "int64",0x894521248a463fe4
+					, "int64",0x83410631648847de, "int64",0xc3394403c38308c3, "int64",0xc085ffffff6a820f, "int64",0xb60f42c089415974
+					, "int64",0x027cb60fc0890234, "int64",0x048a02e8c1f08901, "int64",0x01048843d8894501, "int64",0x04e0c103e083f089
+					, "int64",0x4404e8c141f88941, "int64",0x4501048ac089c009, "int64",0x830201448843d889, "int64",0x8af88902e7c10fe7
+					, "int64",0x448843d889450104, "int64",0x44c641d889440401, "int64",0x3b74d285453d0601, "int64",0x890234b60fd08944
+					, "int64",0x4401048a02e8c1f0, "int64",0xe68311048841da89, "int64",0x048af08904e6c103, "int64",0x11448841da894401
+					, "int64",0x0144c641d8894402, "int64",0x44c641d889443d04, "int64",0x415e415f413d0601, "int64",0xc35b5e5f5c
+					,  mCode)
+									;  x86 size:288
+			Else  NumPut("int64",0x56530cec83e58955, "int64",0x3114558b08458b57, "int64",0x31767600107d83c9, "int64",0x373cb60f0c7d8bf6
+					, "int64",0xb60f0c7d8bf47d89, "int64",0x7d8bfc7d8901377c, "int64",0x7d8902377cb60f0c, "int64",0x8a02efc1f47d8bf8
+					, "int64",0xf47d8b0a1c88381c, "int64",0x5d8b04e7c103e783, "int64",0x1c8adf0904ebc1fc, "int64",0xfc7d8b020a5c8838
+					, "int64",0x5d8b02e7c10fe783, "int64",0x1c8adf0906ebc1f8, "int64",0xf87d8b040a5c8838, "int64",0x5c88381c8a3fe783
+					, "int64",0x03c68308c183060a, "int64",0x187d838c7210753b, "int64",0x7d8b0c758b507400, "int64",0xf475893e34b60f18
+					, "int64",0xb60f1875030c758b, "int64",0xf4758bfc75890176, "int64",0x1c88301c8a02eec1, "int64",0xc103e683f4758b0a
+					, "int64",0x04efc1fc7d8b04e6, "int64",0x0a5c88301c8afe09, "int64",0x8a0fe683fc758b02, "int64",0x44c6040a5c88b01c
+					, "int64",0x74001c7d833d060a, "int64",0x0f1c7d8b0c758b30, "int64",0xeec1f475893e34b6, "int64",0x8b0a1c88301c8a02
+					, "int64",0x04e6c103e683f475, "int64",0xc6020a448830048a, "int64",0x060a44c63d040a44, "int64",0xc35dec895b5e5f3d
+					,  mCode)
+
+			DllCall("Kernel32\VirtualProtect", "ptr",mCode, "ptr",352, "uint",0x40, "uintp",0)
+			StrPut("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", mCode.Ptr+352, 64, "cp0") ;  Base64 lookup table
+		}
+
+		Local  Tail   :=  Mod(Src.Size,3)
+			,  sBytes :=  Src.Size - Tail
+			,  nBytes := ( Ceil(Src.Size*4/3) + 3 ) & ~0x03
+			,  Trg
+
+		VarSetStrCapacity(&Trg, nBytes)
+
+		DllCall( mCode, "ptr",   mCode.Ptr + 352               ;  Lookup table
+					, "ptr",   Src                           ;  Source string
+					, "int",   sBytes                        ;  Source bytes
+					, "str",   Trg                           ;  Target string
+					, "int",   Tail=2 ? sBytes : 0           ;  Tail 2 bytes
+					, "int",   Tail=1 ? sBytes : 0           ;  Tail 1 byte
+					, "cdecl" )
+		Return Trg
+	}
+
+	; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	FileDec(&Src)                                                     ;  By SKAN for ah2 on D672/D672 @ autohotkey.com/r?p=534720
+	{
+		Static mCode
+		If  Not IsSet(mCode)
+		{
+			mCode := Buffer(256 + 256, 0)
+
+			If  ( A_PtrSize =  8 )  ;  x64 size:251
+				NumPut("int64",0x448b485441575653, "int64",0x455024548b4c4824, "int64",0x317376c08545db31, "int64",0x00000000801f0fdb
+					, "int64",0x0f3234b60f48de89, "int64",0xdf8912e6c13134b6, "int64",0xb60f023a7cb60f48, "int64",0x89fe090ce7c1393c
+					, "int64",0x0f043a7cb60f48df, "int64",0xfe0906e7c1393cb6, "int64",0x063a7cb60f48df89, "int64",0x8944fe09393cb60f
+					, "int64",0x08ecc141f48941df, "int64",0xc4c14166e4894566, "int64",0x8944392489456608, "int64",0x83410239748841df
+					, "int64",0xc3394408c38303c3, "int64",0x483c760038809672, "int64",0xc11114b60f10b60f, "int64",0x460240b60f4c12e2
+					, "int64",0x0ce0c1410104b60f, "int64",0x0440b60f48c20944, "int64",0x0906e0c10104b60f, "int64",0x66d0896608eac1c2
+					, "int64",0x4166da894408c0c1, "int64",0x76003a8041110489, "int64",0x04b60f02b60f4924, "int64",0x52b60f4d12e0c101
+					, "int64",0xe2c11114b60f4202, "int64",0x894410e8c1d0090c, "int64",0x5f5c4111048841da, "int64",0xc35b5e
+					,  mCode)
+									;  x86 size:238
+			Else  NumPut("int64",0x565304ec83e58955, "int64",0x310c558b08458b57, "int64",0x315d7600107d83c9, "int64",0x3cb60f323cb60ff6
+					, "int64",0x325cb60f12e7c138, "int64",0x0ce3c1181cb60f02, "int64",0x0f04325cb60fdf09, "int64",0xdf0906e3c1181cb6
+					, "int64",0x1cb60f06325cb60f, "int64",0x7d8bfc7d89df0918, "int64",0x6608ebc1fc5d8b14, "int64",0x8b0f1c896608c3c1
+					, "int64",0x0f5c88fc5d8a147d, "int64",0x3b08c68303c18302, "int64",0x8018558ba5721075, "int64",0x0f18558b3b76003a
+					, "int64",0xe2c11014b60f12b6, "int64",0x0276b60f18758b12, "int64",0x090ce6c13034b60f, "int64",0x0476b60f18758bf2
+					, "int64",0x0906e6c13034b60f, "int64",0x08c2c16608eac1f2, "int64",0x8b0e14896614758b, "int64",0x8b2876003a801c55
+					, "int64",0x14b60f12b60f1c55, "int64",0x0f1c758b12e2c110, "int64",0xc13004b60f0276b6, "int64",0x8810eac1c2090ce0
+					, "int64",0x5f0a048814558bd0, "int64",0xc35dec895b5e
+					,  mCode)
+
+			DllCall("Kernel32\VirtualProtect", "ptr",mCode, "ptr",256, "uint",0x40, "uintp",0)
+
+			NumPut("short",0x3332,  NumPut("int64",0x31302F2E2D2C2B2A, NumPut("int64",0x2928272625242322,         ; Base64 lookup table
+			NumPut("int64",0x21201F1E1D1C1B1A,  NumPut("char",0x19,    NumPut("int64",0x1817161514131211,
+			NumPut("int64",0x100F0E0D0C0B0A09,  NumPut("int64",0x0807060504030201, NumPut("int",0x3D3C3B,
+			NumPut("int64",0x3A3938373635343F,  NumPut("char",0x3E, mCode,256 + 43)+3))+7))))+6))))
+		}
+
+		Local  Tail    :=  SubStr(Src, -4)                     ;  Tail 4 bytes
+			,  EqTo    :=  4 -  StrLen(RTrim(Tail,"="))        ;  = count
+			,  SBytes  :=  StrLen(Src) * 2 - (EqTo ? 8 : 0)    ;  Source bytes
+			,  nBytes  :=  (StrLen(Src) - EqTo) * 3 // 4       ;  Target bytes
+			,  Trg     :=  Buffer(nBytes)                      ;  Target buffer
+
+		DllCall( mCode, "ptr",   mCode.Ptr + 256               ;  Lookup table
+					, "str",   Src                           ;  Source string
+					, "int",   sBytes                        ;  Source bytes
+					, "ptr",   Trg                           ;  Target buffer
+					, "str",   EqTo=1 ? Tail : ""            ;  Tail with =
+					, "str",   EqTo=2 ? Tail : ""            ;  Tail with ==
+					, "cdecl" )
+	Return Trg
+	}
+}
+
+Class	Folder	{
+	
+	Clear(dir)	{
+		if	!dir
+			Return "Sem diretório definido"
+		Loop Files, dir '\*.*', 2
+		{
+			FileDelete(dir '\DVRWorkDirectory')
+			FileDelete(dir '\IPCWorkDirectory')
+			FileDelete(A_LoopFileFullPath '\DVRWorkDirectory')
+			FileDelete(A_LoopFileFullPath '\IPCWorkDirectory')
+			This.Clear( A_LoopFileFullPath )
+		}
+		return
+
+	}
+
+}
+
+Class	Mail	{
+
+	new(	to				;	1
+		,	subject			;	2
+		,	body			;	3
+		,	from	:= ''	;	4
+		,	name	:= ''	;	5
+		,	cc* )	{		;	6+
+
+		if(	StrLen( from ) = 0 )
+			from := 'Sistema Monitoramento <do-not-reply@cotrijal.com.br>'
+		Else
+			from := !name ? 'Sistema Monitoramento <' from '>' : name ' <' from '>'
+		if	cc
+			Loop	cc.Count()
+				copia .= cc[ A_Index ] ','
+			copia	:=	SubStr(copia, 1, -1)
+		pmsg							:= ComObject('CDO.Message')
+		pmsg.From						:= from
+		pmsg.To							:= to
+		pmsg.CC							:= copia
+		pmsg.Subject					:= subject
+		If	InStr(body, '<html>')
+			pmsg.HtmlBody				:= body
+		Else
+			pmsg.TextBody				:= body
+
+		fields							:= Object()
+		fields.smtpserver				:= 'mail.cotrijal.com.br'
+		fields.smtpserverport			:= 25
+		fields.smtpusessl				:= false
+		fields.sendusing				:= 2
+		fields.smtpauthenticate			:= 1
+		fields.sendusername				:= 'SistemaMonitoramento@cotrijal.com.br'
+		fields.sendpassword				:= ''
+		fields.smtpconnectiontimeout	:= 10
+		schema							:= 'http://schemas.microsoft.com/cdo/configuration/'
+		pfld 							:= pmsg.Configuration.Fields
+
+		; For	field, value in fields
+			; pfld.Item( schema field ) := IsSet(value) ? value : ''
+		pfld.Update()
+		pmsg.Send()
+		return
+	}
+
+}
+
+; Class	Gui	{
+
+
+	; New() {
+
+	; 	this.Cores()
+
+	; }
+
+	; Control_BG_Color( wParam, lParam, hwnd )	{
+
+	; 	if( !isObject( ctlColorObj[lParam] ) )
+	; 		return
+	; 	hBrush := dllCall( "Gdi32.dll\CreateSolidBrush", "UInt", ctlColorObj[lParam].bg, "UPtr" )
+
+	; 	if( ctlColorObj[lParam].text )
+	; 		dllCall( "gdi32.dll\SetTextColor", "Ptr", wParam, "UInt", ctlColorObj[lParam].text )
+	; 	dllCall( "gdi32.dll\SetBkColor", "Ptr", wParam, "UInt", ctlColorObj[lParam].bg )
+	; 	dllCall( "gdi32.dll\SetBkMode", "Ptr", wParam," Int", 2 )
+	; 	return hBrush
+
+	; }
+
+	; Cores( id="", cor1="", cor2="" )												{
+
+	; 	Gui,% Strlen( id ) ? id ":Font" : "Font", cWhite
+	; 	Gui,% Strlen( id ) ? id ":Color" : "Color",	,%	!StrLen( cor1 ) ? "9BACC0" : cor1
+	; 	Gui,% Strlen( id ) ? id ":Color" : "Color",%	!StrLen( cor2 )	? "374658" : cor2
+
+
+	; }
+	
+	; Destroy( id="" )																{
+
+	; 	Gui,% Strlen( id ) ? id ":Destroy" : "Destroy"
+
+	; }
+
+	; Font( params* )																	{
+
+	; 	Loop, % params.count()	{
+
+	; 		if	InStr( params[ A_Index ], ":")	{
+
+	; 			if ( debug => 4 )
+	; 				OutputDebug % "(Class gui.font)`n`tGui Named = " params[ A_index ]
+
+	; 			named := params[ A_index ]
+
+	; 		}
+	; 		Else
+	; 			config .= " " params[ A_index ]
+	; 	}
+
+	; 	Gui,% named "Font"
+	; 	Gui,% named "Font",% config
+
+	; }
+
+	; GroupBox( Text, GroupBoxOptions = "", Font = "", FontOptions = "" , Named = "" )	{
+	; 	Named := Named != "" ? Named ":" : Named
+	; 	Gui, %Named%Font,%	FontOptions,%	Font
+	; 	Gui, %Named%Add,	GroupBox,%		GroupBoxOptions,%	Text
+	; }
+
+	; Menu( params* )																		{	;	VALIDAR
+	; 	Loop, % params.count()	{
+	; 		if ( debug => 4 )
+	; 			OutputDebug % "(Class gui.menu)`n`tGui params[%A_Index%] = " params[ A_index ]
+	; 		if ( A_index = 1 )
+	; 			type :=	params[ A_index ] ","
+	; 			Else
+	; 				parametros .= params[ A_index ] ","
+	; 		}
+			
+	; 		Menu, % type, % SubStr( parametros, 1, -1 )
+	; }
+
+	; ScreenSizes()																		{	;	REMOVER
+	; 	Return "monitor_w, monitor_h e work_h com os valores."
+	; }
+
+	; Submit( named="" , hide="0" )														{
+	; 	if named
+	; 		named .= ":"
+	; 	Gui,	%named%Submit,% hide = "0" ?	"NoHide" : ""
+	; }
+
+	; ;	posições e tamanhos
+	; 	x( value="5" )	{
+	; 		If	InStr(value, ".")
+	; 			value := Floor( Round( monitor_w*value ) )
+
+	; 		Return "x" value
+	; 	}
+	; 	y( value="1" )	{
+	; 		If	InStr(value, ".")
+	; 			Return "y" Floor( Round( 20*value ) )
+	; 		Else
+	; 			Return "y" value*20
+	; 	}
+	; 	w( value="" )	{
+	; 		If	InStr(value, ".")
+	; 			value := Floor( Round( monitor_w*value ) )
+	; 		Return !value ? "" : "w" value
+	; 	}
+	; 	h( value="" )	{
+	; 		If	InStr(value, ".")
+	; 			value := Floor( Round( monitor_h*value ) )
+
+	; 		Return !value ? "" : "h" value
+	; 	}
+
+; }

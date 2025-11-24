@@ -1,0 +1,83 @@
+﻿;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.0.0.1
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = Heimdall
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\ico\sm.ico
+
+;	Includes
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk2
+
+;	Configurações
+	; #NoTrayIcon
+	#SingleInstance Force
+
+;	Comandos
+	comando := Map()
+	comando['detecção']	:=	'&MotionDetect[0].EventHandler.TimeSection[0][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[0][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[1][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[1][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[2][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[2][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[3][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[3][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[4][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[4][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[5][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[5][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[6][0]=1 20:30:00-23:59:59'
+						.	'&MotionDetect[0].EventHandler.TimeSection[6][1]=1 00:00:00-05:59:59'
+						.	'&MotionDetect[0].Enable=true'
+						.	'&MotionDetect[0].EventHandler.LogEnable=true'
+						.	'&MotionDetect[0].EventHandler.RecordEnable=false'
+						.	'&MotionDetect[0].EventHandler.SnapshotEnable=true'
+						.	'&MotionDetect[0].EventHandler.MailEnable=false'
+						.	'&MotionDetect[0].MotionDetectWindow[0].Sensitive=85'
+						.	'&MotionDetect[0].MotionDetectWindow[0].Threshold=10'
+	comando['snapshot']	:=	'&Encode[0].SnapFormat[1].Video.FPS=0.142857'
+						.	'&Encode[0].SnapFormat[1].Video.Quality=6'
+	comando['hora_analítico']	:=	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[0][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[0][1]=1 20:30:00-23:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[1][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[1][1]=1 20:30:00-23:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[2][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[2][1]=1 20:30:00-23:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[3][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[3][1]=1 20:30:00-23:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[4][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[4][1]=1 20:30:00-23:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[5][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[5][1]=1 20:30:00-23:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[6][0]=1 00:00:00-05:59:59'
+								.	'&VideoAnalyseRule[0][0].EventHandler.TimeSection[6][1]=1 20:30:00-23:59:59'
+
+;	Code
+
+	s := '
+		(
+		SELECT	[name],
+			[ip]
+		FROM
+			[Dguard].[dbo].[cameras]
+		WHERE
+			(	[vendormodel] like 'Dahua%' OR
+				[vendormodel] like 'intel%'	)
+		ORDER BY 1
+		)'
+	s := sql(s)
+	h := Http()
+	loop	s.Length-1 {
+		if	ping( s[A_Index+1][2] ) {
+			OutputDebug s[A_Index+1][1]	'`t' s[A_Index+1][2] '`n`tSnapshot`t' 
+				.	h( "http://admin:tq8hSKWzy5A@" s[A_Index+1][2] "/cgi-bin/configManager.cgi?action=setConfig" comando['snapshot'],,,,1)
+			OutputDebug					'`tDetecção`t'
+				.	h( "http://admin:tq8hSKWzy5A@" s[A_Index+1][2] "/cgi-bin/configManager.cgi?action=setConfig" comando['detecção'],,,,1)
+			OutputDebug 				'`tHora_analítico`t'
+				.	h( "http://admin:tq8hSKWzy5A@" s[A_Index+1][2] "/cgi-bin/configManager.cgi?action=setConfig" comando['hora_analítico'],,,,1)
+
+		}
+	}
+	ExitApp(0)

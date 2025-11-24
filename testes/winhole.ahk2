@@ -1,0 +1,153 @@
+﻿#Requires AutoHotKey v2.0+
+#SingleInstance force 
+Persistent
+
+; Note: Exit script with Esc::
+OnExit(exit())
+
+; Settings
+radius:=200			; Starting radius of the hole.
+increment:=25		; Amount to decrease/increase radius of circle when turning scroll wheel
+rate:=40			; The period (ms) of the timer. 40 ms is 25 "fps"
+Toggle := 0
+
+; Make the region
+region:=makeCircle(radius)
+; Script settings
+SetWinDelay(-1)
+ListLines(false) ; Remove when debugging.
+
+F1::
+	{
+		global Toggle
+		timer(Toggle:=!Toggle,region,rate)
+		return
+	}
+
+#HotIf Toggle
+c::					; When on, type c for copying.
+	{
+		global Toggle
+		Send("^c")
+		Sleep(100)
+		timer(Toggle:=!Toggle,region,rate)	; Toggle on/off
+		return
+	}
+
+return
+WheelUp::														; Increase the radius of the circle
+WheelDown::														; Decrease 			-- "" --
+	{ 
+		global radius,region
+		InStr(A_ThisHotkey, "Up") ? radius+=increment : radius-=increment
+		radius<1 ? radius:=1 : ""									; Ensure greater than 0 radius
+		region:=makeCircle(radius)
+		timer(1,region)
+		return
+	}
+
+^WheelUp::
+^WheelDown::Switchwindows() ; Switch windows
+
+#HotIf
+
+esc::exit()														; Exit script with Esc::
+exit(){
+	timer(0) ; For restoring the window if region applied when script closes.
+	ExitApp()
+return
+}
+
+Switchwindows()
+{
+	;  Get the absolute coordinates corresponding to the current mouse position.
+	prevCM := CoordMode("Mouse", "Screen")
+	MouseGetPos(&x, &y)
+	CoordMode("Mouse", prevCM)
+
+	;  The method to obtain the hWnd of the root window located below the absolute coordinates x and y is as follows.
+	hWnd := DllCall("User32.dll\WindowFromPoint", "Int64",(x & 0xFFFFFFFF) | (y << 32), "Ptr")
+	hRootWnd := DllCall("User32.dll\GetAncestor", "Ptr",hWnd, "UInt",GA_ROOT := 2, "Ptr")
+
+	;  Move the window under the current mouse to the bottom:
+	WinMoveBottom("ahk_id " hRootWnd)
+	return
+}
+
+timer(state,region:="",rate:=50){
+	; Call with state=0 to restore window and stop timer, state=-1 stop timer but do not restore
+	; region,  see WinSet_Region()
+	; rate, the period of the timer.
+	static timerFn:="", hWin:="", aot:=""
+	if (state=0) {												; Restore window and turn off timer
+		if timerFn
+			SetTimer(timerFn,0)
+		if !hWin
+			return
+		WinSetRegion(, "ahk_id " hWin)
+		if !aot													; Restore not being aot if appropriate.
+			WinSetAlwaysOnTop(0, "ahk_id " hWin)
+		hWin:="",timerFn:="",aot:=""
+		return
+	} else {
+             if (timerFn)    ; ... stop timer before starting a new one.
+			SetTimer(timerFn,0)   
+   	    if !hWin {													; Get the window under the Mouse.
+		MouseGetPos(, , &hWin)
+		aot := WinGetExStyle("ahk_id " hWin)        ; Get always-on-top state, to preserve it.
+		aot&=0x8      ;0x8 为 WS_EX_TOPMOST
+		if !aot
+			WinSetAlwaysOnTop(1, "ahk_id " hWin)     ;on-top window
+	      }
+	
+	     timerFn:= timerFunction.Bind(hWin,region)	; Initialise the timer.
+	     timerFn.Call(1)												; For better responsiveness, 1 is for reset static
+	     SetTimer(timerFn,rate)
+             return
+      }
+}
+
+timerFunction(hWin,region,resetStatic:=0){
+	; Get mouse position and convert coords to win coordinates, for displacing the circle
+	static px:="",py:=""
+	WinGetPos(&wx, &wy, , , "ahk_id " hWin)
+	CoordMode("Mouse", "Screen")
+	MouseGetPos(&x, &y)
+	x-=wx,y-=wy
+	if (x=px && y=py && !resetStatic)
+		return
+	else
+		px:=x,py:=y
+	WinSet_Region(hWin,region,x,y)
+
+	return
+}
+
+WinSet_Region(hWin,region,dx:=0,dy:=0){
+	; hWin, handle to the window to apply region to.
+	; Region should be on the form, region:=[{x:x0,y:y0},{x:x1,y:y1},...,{x:xn,y:yn},{x:x0,y:y0}]
+	; dx,dy is displacing the the region by fixed amount in x and y direction, respectively.
+	; inverted=true, make the region the only part visible, vs the only part see-throughable for inverted=false
+	
+	WinGetPos(, , &w, &h, "ahk_id " hWin)
+	regionDefinition.= "0-0 0-" h " " w "-" h " " w "-0 " "0-0 "
+	
+	for k, pt in region
+		regionDefinition.= dx+pt.x "-" dy+pt.y " "
+	WinSetRegion(regionDefinition, "ahk_id " hWin)
+}
+
+; Function for making the circle
+makeCircle(r:=100,n:=-1){
+	; r is the radius.
+	; n is the number of points, let n=-1 to set automatically (highest quality).
+	static pi:=ATan(1)*4
+	pts:=[]
+	n:= n=-1 ? Ceil(2*r*pi) : n
+	n:= n>=1994 ? 1994 : n			; There is a maximum of 2000 points for WinSet,Region,...
+	loop n+1
+		t:=2*pi*(A_Index-1)/n, pts.push({x:Round(r*Cos(t)),y:Round(r*Sin(t))})
+	return pts
+}
+; Author: Helgef
+; Date: 2017-04-15

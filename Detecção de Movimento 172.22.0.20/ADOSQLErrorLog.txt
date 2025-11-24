@@ -1,0 +1,37 @@
+
+Changed database context to 'master'.
+   Number: 0, NativeError: 5701, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 13:36 sexta-feira, 30 de agosto de 2024
+
+
+Changed language setting to us_english.
+   Number: 0, NativeError: 5703, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 13:36 sexta-feira, 30 de agosto de 2024
+Changed database context to 'master'.
+   Number: 0, NativeError: 5701, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 13:37 sexta-feira, 30 de agosto de 2024
+
+
+Changed language setting to us_english.
+   Number: 0, NativeError: 5703, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 13:37 sexta-feira, 30 de agosto de 2024
+Changed database context to 'master'.
+   Number: 0, NativeError: 5701, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:01 sexta-feira, 30 de agosto de 2024
+
+
+Changed language setting to us_english.
+   Number: 0, NativeError: 5703, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:01 sexta-feira, 30 de agosto de 2024
+Changed database context to 'master'.
+   Number: 0, NativeError: 5701, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:33 sexta-feira, 30 de agosto de 2024
+
+
+Changed language setting to us_english.
+   Number: 0, NativeError: 5703, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:33 sexta-feira, 30 de agosto de 2024
+Changed database context to 'master'.
+   Number: 0, NativeError: 5701, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:34 sexta-feira, 30 de agosto de 2024
+
+
+Changed language setting to us_english.
+   Number: 0, NativeError: 5703, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:34 sexta-feira, 30 de agosto de 2024
+Changed database context to 'master'.
+   Number: 0, NativeError: 5701, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:34 sexta-feira, 30 de agosto de 2024
+
+
+Changed language setting to us_english.
+   Number: 0, NativeError: 5703, Source: Microsoft OLE DB Provider for ODBC Drivers, SQLState: 01000, User: dsantos, Date: 14:34 sexta-feira, 30 de agosto de 2024

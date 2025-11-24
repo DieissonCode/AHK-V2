@@ -1,0 +1,88 @@
+#Include	..\Sistema Monitoramento\libs\Class\Socket.ahk2
+comando:="
+		(
+		teste
+		)"
+
+g:=Gui()
+g.OnEvent("close", gui_close)
+g.OnEvent("escape", gui_close)
+g.Add("Edit", "vMyEdit Multi w800 h300 ReadOnly", "")
+g.Show()
+
+F3::send()
+
+send() {
+	sock:=winsock("client", cb, "IPV4")
+	sock.Connect( "10.0.20.43", 1 )
+}
+
+cb(sock, event, err) {
+	Global	informação_do_cliente
+		,	comando
+	Switch	{
+		Case	sock.name = "client":
+			Switch	event	{
+				Case	"Close":
+					informação_do_cliente := ""
+					sock.close()
+
+				Case	"Connect":	; Conexão completa, se err = 0 então foi completo
+					OutputDebug "Conectando à...`n`tEndereço:`t" sock.addr "`n`tPorta:`t" sock.port "`n"
+					print_gui("Conectando à...`n`tEndereço:`t" sock.addr "`n`tPorta:`t" sock.port "`r`n")
+
+				Case	"Write":	; Cliente pronto para envio ou leitura
+					get_req	:= comando
+					strbuf	:= Buffer(StrPut(get_req,"UTF-8"),0)
+					StrPut(get_req,strbuf,"UTF-8")
+					sock.Send(strbuf)
+					Outputdebug "Enviado:`n`t" Trim(get_req,"`r`n") "`n"
+					print_gui("Enviado:`n`t" Trim(get_req,"`r`n") "`r`n")
+
+				Case	"Read":		; Não vai haver informação para leitura
+					buf := sock.Recv()
+					informação_do_cliente .= StrGet(buf,"UTF-8")
+					print_gui(informação_do_cliente "`n")
+			}
+
+		Case	sock.name = "server", instr(sock.name,"serving-"):
+			Switch	event	{
+				Case	"Accept":
+					sock.Accept(&addr,&newsock) ; pass &addr param to extract addr of connected machine
+					Outputdebug "Servidor processando conexão de:`n`tEndereço:`t" newsock.addr "`n"
+					print_gui( "Cliente " newsock.addr " conectado na porta " newsock.port "`n")
+
+				Case	"Close":
+					sock.close()
+
+				Case	"Read":
+					If !(buf := sock.Recv()).size ; Recebe o buffer, verifica o tamanho e retorna em buffer de tamanho zero
+						return
+					Outputdebug "Recebido do client:`n`t" Trim(strget(buf,"UTF-8"),"`r`n") "`n"
+					print_gui( Trim( StrGet( buf, "UTF-8" ), "`r`n" ) "`n")
+
+			}
+
+		Case	sock.name = "client-err":
+			if(event = "connect") && err
+				msgbox sock.name ": " event ": err: " err 
+		Default:
+			msgbox	sock.name
+
+	}
+}
+
+print_gui(str) {
+	Global	g
+	AppendText(g["MyEdit"].hwnd,str)
+}
+
+AppendText(EditHwnd, sInput, loc := "bottom") { ; Posted by TheGood: https://autohotkey.com/board/topic/52441-append-text-to-an-edit-control/#entry328342
+	insertPos := (loc="bottom") ? SendMessage(0x000E, 0, 0,,"ahk_id " EditHwnd) : 0	; WM_GETTEXTLENGTH
+	r1 := SendMessage(0x00B1, insertPos, insertPos,,		"ahk_id " EditHwnd)		; EM_SETSEL - place cursor for insert
+	r2 := SendMessage(0x00C2, False, StrPtr(sInput),,		"ahk_id " EditHwnd)		; EM_REPLACESEL - insert text at cursor
+}
+
+gui_close(*) {
+	ExitApp
+}

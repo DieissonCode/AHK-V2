@@ -1,0 +1,41 @@
+﻿
+oMap := Map()
+oMap.CaseSense := "Off"
+oMap.Set("Red", "ff0000", "Green", "00ff00", "Deep Blue", "0000ff")
+
+oMap.DefineProp("__get", { Call: Get })
+
+oMap.Default := "Def"
+
+Get(this, Key, Params) {
+MsgBox
+    ; in this way Return the value of MapObj.Default, if defined:
+    try {
+        if !Params.Length
+            return this[key] ;Or this.Get(Key)
+    
+        return this[key][Params*]
+        
+    } catch UnsetItemError
+        throw UnsetItemError(Key)
+}
+
+MsgBox(oMap.asli)
+
+; Array.Prototype.DefineProp('Sort', {Call: Order})
+; Order( string, obj, opt:='' )	{
+;     ret := []
+;     Loop obj.Length
+;         tempList .= obj[A_Index] (A_Index = obj.Length ? '' : '`n')
+;     tempList :=  StrSplit(Sort(tempList, opt), '`n')
+;     Loop tempList.Length
+;         ret.Push(tempList[A_Index])
+;     Return	ret
+; }
+; s()
+; s()   {
+;     a := ['z','d','a']
+;     a.Sort(a)
+;     MsgBox
+; }
+

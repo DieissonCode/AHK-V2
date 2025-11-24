@@ -1,0 +1,5 @@
+﻿#Requires AutoHotkey v2
+
++q::Send "{Tab}"
+!q::Send "{Blind}!{Tab}"
+!+q::Send "{Blind}+!{Tab}"

@@ -1,0 +1,17 @@
+﻿#Requires AutoHotkey v2.0
+Persistent
+mymenu  := A_TrayMenu
+mysub   := Menu()
+mymenu.Delete()
+mymenu.Add('teste1', NoAction)
+mymenu.SetColor('168b0b')
+mymenu.Add('teste2', NoAction)
+mymenu.Add('teste3', NoAction)
+mysub.Add('sub', NoAction)
+mymenu.Add('mymenu', mysub)
+mymenu.SetIcon('teste1','C:\AHK\icones\images\h.png',,0)
+
+NoAction(*) {
+    ; Do nothing.
+}
+

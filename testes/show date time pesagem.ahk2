@@ -1,0 +1,36 @@
+﻿#Requires AutoHotkey v2.0
+
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\http.ahk2
+
+h := Http()
+s := '
+	(
+		SELECT [name]
+			,[ip]
+		FROM [Dguard].[dbo].[cameras]
+		where name like '%] carga%' or name like '%] plataforma%'
+		order by name
+	)'
+__ := sql(s)
+Loop __.Length-1	{
+	is_samsung := ''
+	url1:=	'http://admin:tq8hSKWzy5A@' __[A_Index+1][2] '/cgi-bin/configManager.cgi?action=setConfig'
+		.	'&VideoWidget[0].ChannelTitle.PreviewBlend=false'
+		.	'&VideoWidget[0].TimeTitle.PreviewBlend=true'
+		.	'&VideoWidget[0].TimeTitle.EncodeBlend=true'
+		.	'&VideoWidget[0].ChannelTitle.EncodeBlend=false'
+	url2:=	'http://admin:tq8hSKWzy5A@' __[A_Index+1][2] '/cgi-bin/system.cgi?msubmenu=camera&action=apply&time_display=1'
+	OutputDebug( (InStr(h.request(url1), 'DOCTYPE') ? is_samsung := h.request(url2) :'OK' ) '`t' __[A_Index+1][1])
+	if StrLen(is_samsung){
+		url3:=	'http://admin:tq8hSKWzy5A@' __[A_Index+1][2] '/cgi-bin/system.cgi?msubmenu=date&action=apply'
+			.	'&ntpurl1=192.9.200.113'
+			.	'&sync_type=0'
+			.	'&timezone=25'
+			.	'dst_enable=0'
+		OutputDebug	'`t' h.request(url3) ' Samsung'
+	}
+	Sleep(100)
+
+}
+ExitApp(0)

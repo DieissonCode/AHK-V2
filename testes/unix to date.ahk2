@@ -1,0 +1,3 @@
+﻿#Requires AutoHotkey v2.0
+MsgBox	DateAdd(1970, 1728650790, 'Seconds')
+msgbox FormatTime(DateAdd(1970, 1728650790, 'Seconds'), 'yyyy-MM-dd hh:mm:ss')

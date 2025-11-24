@@ -1,0 +1,18 @@
+{
+	"editor.suggest.showWords": false,
+	"editor.wordBasedSuggestions": "currentDocument",
+	"editor.suggest.showKeywords": false,
+	"AutoHotkey2.AutoLibInclude": "Disabled",
+	"AutoHotkey2.DebugConfiguration": {
+
+		"port": "9002-9100",
+		"useAnnounce": "detail",
+		"useAutoJumpToError": true,
+		"useDebugDirective": true,
+		"usePerfTips": true
+	},
+	"AutoHotkey2.InterpreterPath": "C:\\Program Files\\Autohotkey\\v2\\AutoHotkey64.exe",
+	"AutoHotkey2.SymbolFoldingFromOpenBrace": false,
+	"AutoHotkey2.Warn.VarUnset": true
+
+}

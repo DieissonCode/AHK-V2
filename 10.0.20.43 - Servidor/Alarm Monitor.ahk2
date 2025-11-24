@@ -1,0 +1,267 @@
+﻿#Requires AutoHotkey v2.0
+#SingleInstance Force
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Viaweb.ahk2
+If(SysGetIPAddresses()[1] != "10.0.20.43" && A_IsCompiled)	{
+	MsgBox('Esse sistema foi desenvolvido para rodar apenas na máquina 10.0.20.43', 'ERRO' )
+	ExitApp(0)
+}
+; Configurações
+Serv	:= ["10.0.20.43", 2700]
+Client	:= Viaweb(Serv)
+
+identity:= '{ "oper":[{"acao":"ident", "a":"139565", "nome":"Kah", "id":1234}] }'
+; 	Global	desarme			:= { E401 : 1, E402 : 1, E403 : 1, R401 : 1, R402 : 1, R403 : 1 }
+; 		,	disparo			:= { E130 : 1, R130 : 1 }
+; 		,	monitoramento	:= { E412 : 1 }
+; 		,	conexao			:= { EAA6 : 1, RAA6 : 1}
+; 		; ,	tem_cadastro:= { E302 : 1, R302 : 1, E313 : 1, R313 : 1, E301 : 1, R301 : 1, E570 : 1, E992 : 1, E993 : 1, R993 : 1, E994 : 1, R994 : 1 , E306 : 1, EAA5 : 1 
+; 						; ,	 E321 : 1}
+; 	s	=
+; 		(
+; 			SELECT
+; 				firebird.IDENTIFICACAO || firebird.SEGUNDOCODIGO,
+; 				firebird.DESCRICAO
+; 			FROM
+; 				TIPOSOCORRENCIAS firebird
+; 			WHERE
+; 				firebird.CODIGOCONJUNTOOCORRENCIAS = 7
+; 			ORDER BY
+; 				firebird.segundocodigo
+; 		)
+; 	e	:=	sql(s)
+
+; 	Global _evento := {}
+; 	Loop,%	e.count()-1	{
+
+; 		z_objeto			:=	e[A_Index+1,1]
+; 		z					:=	{descricao : e[A_Index+1,2]}
+; 		_evento[z_objeto]	:=	z
+; 		VarSetCapacity(z_objeto,0)
+
+; 	}
+
+; 	s	=
+; 		(
+; 		SELECT
+; 			firebird.CODIGO,
+; 			firebird.NOME,
+; 			firebird.CODIGOCIDADE
+; 		FROM	CLIENTES firebird
+; 		WHERE	firebird.tipo = 7
+; 		ORDER BY firebird.CODIGO
+; 		)
+; 	e	:=	sql(s)
+
+; 	Global _cliente := {}
+; 	Loop,%	e.count()-1	{
+; 		z_objeto			:=	e[A_Index+1,1]
+; 		z					:=	{	nome	:	e[A_Index+1,2]
+; 								,	operador:	e[A_Index+1,3]	}
+; 		_cliente[z_objeto]	:=	z
+
+; 	}
+
+; 	s	=
+; 	(
+; 		SELECT
+; 			firebird.CLIENTE,
+; 			firebird.SETOR,
+; 			firebird.DESCRICAO
+; 		FROM
+; 			CLIENTESSETORES firebird
+; 		ORDER BY 1
+; 	)
+; 	e	:=	sql(s)
+
+; 	Global _setor := {}
+; 	Loop,%	e.count()-1	{
+
+; 		z_objeto			:=	e[A_Index+1,1]
+; 		z					:=	{ ( e[A_Index+1,2]) : e[A_Index+1,3] }
+; 		If !_setor[z_objeto].count()
+; 			_setor[z_objeto]	:=	z
+; 		Else
+; 			_setor[z_objeto][e[A_Index+1,2]] :=	 e[A_Index+1,3]
+
+; 		VarSetCapacity(z_objeto,0)
+
+; 	}
+
+; 	s	=
+; 		(
+; 		SELECT
+; 			firebird.CLIENTE,
+; 			firebird.NUMERO,
+; 			firebird.NOME
+; 		FROM
+; 			CLIENTESUSUARIOS firebird
+; 		order by 1, 2
+; 		)
+; 	e	:=	sql(s)
+
+; 	Global _usuario := {}
+; 	Loop,%	e.count()-1	{
+; 		z_objeto			:=	e[A_Index+1,1]
+; 		z					:=	{ ( e[A_Index+1,2]) : e[A_Index+1,3] }
+; 		If !_usuario[z_objeto].count()
+; 			_usuario[z_objeto]	:=	z
+; 		Else
+; 			_usuario[z_objeto][e[A_Index+1,2]] :=	 e[A_Index+1,3]
+
+; 		VarSetCapacity(z_objeto,0)
+
+; 	}
+
+
+
+; Gui, Add, ListView, x0 y10 w1560 R50	Grid, ID Cliente|ID Partição|Evento|Partição|Data e Hora|ID Zona ou Usuário|Nome Unidade|Descrição do Evento|Zona ou Usuário|Sort|Operador|Data Evento
+
+; 	LV_ModifyCol(1, 75)
+; 	LV_ModifyCol(2, 75)
+; 	LV_ModifyCol(3, 75)
+; 	LV_ModifyCol(4, 75)
+; 	LV_ModifyCol(5, 150)
+; 	LV_ModifyCol(6, 110)
+; 	LV_ModifyCol(7, 250)
+; 	LV_ModifyCol(8, 150)
+; 	LV_ModifyCol(9, 150)
+; 	LV_ModifyCol(10, 75)
+; 	LV_ModifyCol(11, 75)
+; 	LV_ModifyCol(12, 150)
+	Client.SendText(identity)
+MsgBox
+
+; return
+
+; GuiClose:
+; ExitApp
+
+; Append(c, obj)	{
+; if !obj[1].isep	
+; 	Return
+
+; OutputDebug	% "Append() " A_LineNumber " Main Script"
+; qualifier	:= SubStr(obj[1].codigoEvento, 1, 1)
+; event		:= SubStr(obj[1].codigoEvento, 2, 3)
+; idisep		:= obj[1].isep
+; ip			:= obj[1].ip
+; conta		:= obj[1].contaCliente
+; evento		:= (qualifier = 3 ? "R" SubStr(obj[1].codigoEvento, 2, 3) : qualifier = 1 ? "E" event : obj[1].codigoEvento)
+; temp_pass	:= InStr("246", qualifier) ? event SubStr(obj[1].zonaUsuario, 1, 1) : ""
+; particao	:= obj[1].particao
+; if(obj[1].mes || obj[1].dia || obj[1].hora || obj[1].minuto )
+; 	data_central	:=	A_YYYY
+; 			.	"-" Format("{:02}",obj[1].mes)
+; 			.	"-" Format("{:02}",obj[1].dia)
+; 			.	" " Format("{:02}",obj[1].hora)
+; 			.	":" Format("{:02}",obj[1].minuto)
+; 			.	":" A_Sec
+
+; data		:=	A_YYYY "-" Format("{:02}", A_MM) "-" Format("{:02}", A_DD) " " Format("{:02}", A_Hour ) ":" Format("{:02}", A_Min) ":" Format("{:02}", A_Sec)
+; zona		:= obj[1].zonaUsuario
+; sensor		:= _setor[LTrim( obj[1].isep,0 )][zona]
+; unidade		:= _cliente[LTrim( obj[1].isep,0 )].nome
+; operador	:= _cliente[LTrim( obj[1].isep,0 )].operador
+; descricao	:= _evento[evento].descricao
+; recepcao	:=	obj[1].recepcao
+
+; Switch	{
+
+; 	Case desarme.HasKey(evento):
+; 		_u :=  _usuario[LTrim( obj[1].isep,0 )][zona]
+; 		sensor := (!_u ? sensor : _u)
+; 		if(zona = 99)
+; 			sensor := "[Horário Programado]"
+
+; 	Case disparo.HasKey(evento), tem_cadastro.HasKey(evento):
+; 		sensor := sensor
+
+; 	Case conexao.HasKey(evento):
+; 		descricao := qualifier = "1" ? "Perda de Conexão" : "Restauro da Conexão"
+
+; 	Case programacao.HasKey(evento) && zona = "51": ;, programacao.HasKey(evento) && zona = "2":	;	2 é acesso pelo viaweb do usuário 2
+; 		descricao := "Iniciado monitoramento à distância"
+; 	Case temp_pass:
+; 		zona:=	qualifier = 2 ? 2
+; 			:	qualifier = 4 ? 3
+; 			:	4
+; 		descricao	:= "[Nova Senha de Uso Único]"
+; 		sensor		:= zona
+; 	Default:
+; 		sensor := sensor
+
+; }
+; Outputdebug	% "Append " A_LineNumber " " A_ScriptName "`n`t" LV_GetCount()
+; LV_Insert(	1
+; 		,	""
+; 		,	idisep						;	1
+; 		,	conta						;	2
+; 		,	evento						;	3
+; 		,	particao					;	4
+; 		,	data						;	5
+; 		,	zona						;	6
+; 		,	unidade						;	7
+; 		,	descricao 					;	8
+; 		; ,	ip							;	9
+; 		,	sensor						;	9
+; 		,	recepcao					;	10
+; 		,	operador					;	11
+; 		,	data_central	)			;	12
+; eventos_to_sql(idisep,conta,qualifier,event,zona,particao,data,unidade,temp_pass,data_central)
+; return
+
+; }
+
+; eventos_to_sql(	valor_isep
+; 		,	valor_client
+; 		,	valor_qualifier
+; 		,	valor_event
+; 		,	valor_zone
+; 		,	valor_partition
+; 		,	valor_data
+; 		,	valor_name
+; 		,	valor_temp_pass
+; 		,	valor_data_central)	{
+; 			OutputDebug	% "Eventos_to_sql() " A_LineNumber " Main Script"
+; valor_client	:= !valor_client	? valor_isep: valor_client
+; valor_partition := !valor_partition	? 0			: valor_partition
+; valor_zone		:= !valor_zone		? 0			: valor_zone
+; valor_temp_pass	:= !valor_temp_pass ? "NULL"	: "'" valor_temp_pass "'"
+; insert =
+; 	(
+; 	INSERT INTO [Viaweb].[dbo].[events] (
+; 		[isep],
+; 		[client],
+; 		[qualifier],
+; 		[event],
+; 		[zone],
+; 		[partition],
+; 		[data],
+; 		[name],
+; 		[temp_pass],
+; 		[data_central]	)
+; 	VALUES (
+; 		'%valor_isep%',
+; 		'%valor_client%',
+; 		'%valor_qualifier%',
+; 		'%valor_event%',
+; 		'%valor_zone%',
+; 		'%valor_partition%',
+; 		'%valor_data%',
+; 		'%valor_name%',
+; 		%valor_temp_pass%,
+; 		'%valor_data_central%'	);
+; 	)
+
+; 	sql(Insert)
+; }
+
+; ^F2::
+; Gui, % (show := !show) ? "Show" : "Hide",,Teste
+
+; Return
+
+; ^F3::
+; If !A_IsCompiled
+; 	MsgBox
+; Return

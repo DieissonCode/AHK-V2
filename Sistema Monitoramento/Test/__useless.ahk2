@@ -1,0 +1,20 @@
+﻿#Requires AutoHotkey v2
+$MButton::
+{
+    KeyWait "MButton", "T0.2"  ; Wait 0.2s to detect hold
+    switch  {
+        case A_TimeSinceThisHotkey < 200:
+            Send "{Shift Down}"
+            Sleep 1
+            Send "{LButton Down}"
+            Sleep 1
+            Send "{LButton Up}"
+            Send "{Shift Up}"
+        default:
+            Send "{Ctrl Down}"
+            Send "{LButton Down}"
+            KeyWait "MButton"
+            Send "{LButton Up}"
+            Send "{Ctrl Up}"
+    }
+}

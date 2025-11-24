@@ -1,0 +1,23 @@
+﻿#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+s :=	(
+	"SELECT	TOP(1)`n"
+	"	 [name]`n"
+	"	,[bin]`n"
+	"	,[version]`n"
+	"	--,[obs]`n"
+	"FROM`n"
+	"	[ASM].[dbo].[Softwares]`n"
+	"WHERE`n"
+	"	[name] = 'teste' AND`n"
+	"	LEN([bin]) > 10`n"
+	"ORDER BY`n"
+	"	[PKID]`n"
+	"DESC"
+)
+
+a	:=	sql( s )
+_:=a[2][2]
+new_instance(_)
+ExitApp 0
+
+

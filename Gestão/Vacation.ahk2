@@ -1,0 +1,177 @@
+﻿; Vacation Calendar GUI for employee vacation management
+; Uses AutoHotkey v2 with provided JSON class for data persistence
+#SingleInstance Force
+SetWorkingDir A_ScriptDir
+
+; Include the JSON class as specified
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk2
+
+; Sample employee data structure
+global Employees := [], DataFile := "VacationData.json"
+if FileExist(DataFile)
+    Employees := JSON.parse(FileRead(DataFile))
+else
+    Employees := [
+        Map("Name", "John Doe", "RegNum", "1001", "Dept", "IT", "Position", "Developer", "HireDate", "2018-05-15", 
+            "PastVacations", ["2020-07-01 to 2020-07-15", "2021-08-01 to 2021-08-14", "2022-06-15 to 2022-06-30", 
+                              "2023-09-01 to 2023-09-15", "2024-07-01 to 2024-07-15"], 
+            "FutureVacations", ["2025-08-01 to 2025-08-15", "2026-07-01 to 2026-07-15"]),
+        Map("Name", "Jane Smith", "RegNum", "1002", "Dept", "HR", "Position", "Manager", "HireDate", "2019-03-10", 
+            "PastVacations", ["2020-06-01 to 2020-06-14", "2021-07-01 to 2021-07-15", "2022-08-01 to 2022-08-15", 
+                              "2023-06-15 to 2023-06-30", "2024-08-01 to 2024-08-15"], 
+            "FutureVacations", ["2025-09-01 to 2025-09-15", "2026-08-01 to 2026-08-15"])
+    ]
+
+; Create GUI
+GuiObj := Gui("+Resize", "Employee Vacation Calendar")
+GuiObj.Add("Text", , "Employee Vacation Management")
+; ListView with separate columns for each vacation year
+LV := GuiObj.Add("ListView", "r20 w1000 vEmployeeList", ["Name", "Reg. Number", "Department", "Position", "Hire Date", 
+                                                         "2020 Vacation", "2021 Vacation", "2022 Vacation", "2023 Vacation", "2024 Vacation", 
+                                                         "2025 Vacation", "2026 Vacation"])
+LV.OnEvent("ColClick", SortListView)
+LV.OnEvent("ItemSelect", LoadFutureVacations)
+GuiObj.Add("Text", , "Edit Future Vacations (YYYY-MM-DD to YYYY-MM-DD, comma-separated):")
+; DateTime control for selecting/typing future vacations
+FutureVacEdit := GuiObj.Add("DateTime", "w400 vFutureVacEdit Format='yyyy-MM-dd to yyyy-MM-dd'", A_Now)
+GuiObj.Add("Button", "Default", "Save Changes").OnEvent("Click", SaveVacations)
+StatusText := GuiObj.Add("Text", "w400 vStatus", "Select an employee to edit future vacations.")
+
+; Populate ListView
+for Emp in Employees {
+    Row := [Emp["Name"], Emp["RegNum"], Emp["Dept"], Emp["Position"], Emp["HireDate"]]
+    ; Add past vacations (2020–2024)
+    for i, Vac in Emp["PastVacations"]
+        Row.Push(Vac)
+    while Row.Length < 10 ; Pad with empty strings if fewer than 5 past vacations
+        Row.Push("")
+    ; Add future vacations (2025–2026)
+    for i, Vac in Emp["FutureVacations"]
+        Row.Push(Vac)
+    while Row.Length < 12 ; Pad with empty strings if fewer than 2 future vacations
+        Row.Push("")
+    LV.Add("", Row*)
+}
+LV.ModifyCol() ; Auto-size columns
+
+GuiObj.Show()
+
+; Join array elements into string
+StrJoin(arr, delimiter) {
+    result := ""
+    for i, val in arr
+        result .= (i > 1 ? delimiter : "") . val
+    return result
+}
+
+; Sort ListView by clicked column
+SortListView(LV, Col, *) {
+    static SortOrder := Map()
+    SortOrder[Col] := SortOrder.Has(Col) ? !SortOrder[Col] : true
+    LV.Sort(Col - 1, SortOrder[Col] ? "Sort" : "SortDesc")
+}
+
+; Load selected employee's future vacations into DateTime control
+LoadFutureVacations(LV, Item, *) {
+    if (Item = 0)
+        return
+    Emp := Employees[Item]
+    FutureVacEdit.Value := StrJoin(Emp["FutureVacations"], ", ")
+    StatusText.Value := "Editing vacations for " . Emp["Name"]
+}
+
+; Save edited future vacations with validation
+SaveVacations(*) {
+    Sel := LV.GetNext()
+    if (!Sel) {
+        StatusText.Value := "Error: Select an employee."
+        return
+    }
+    Emp := Employees[Sel]
+    NewVacations := StrSplit(FutureVacEdit.Value, ",")
+    NewVacations := ArrayMap(NewVacations, (v) => Trim(v))
+    
+    ; Validate vacation format (YYYY-MM-DD to YYYY-MM-DD)
+    for Vac in NewVacations {
+        if (!RegExMatch(Vac, "^\d{4}-\d{2}-\d{2}\s+to\s+\d{4}-\d{2}-\d{2}$")) {
+            StatusText.Value := "Error: Invalid date format. Use YYYY-MM-DD to YYYY-MM-DD."
+            return
+        }
+        ; Check if dates are in the next 2 years
+        StartDate := SubStr(Vac, 1, 10)
+        if (StartDate < "2025-01-01" || StartDate > "2027-12-31") {
+            StatusText.Value := "Error: Vacation dates must be between 2025 and 2027."
+            return
+        }
+    }
+    
+    ; Validate overdue vacation (2+ years since hire date without vacation)
+    HireDate := DateTime(Emp["HireDate"])
+    for Vac in NewVacations {
+        StartDate := DateTime(SubStr(Vac, 1, 10))
+        if (StartDate.Diff(HireDate, "Years") >= 2) {
+            StatusText.Value := "Warning: Vacation overdue for " . Emp["Name"] . " (Hire date: " . Emp["HireDate"] . ")."
+            ; Continue to allow saving with warning
+        }
+    }
+    
+    ; Validate max 2 employees per position per month
+    for Vac in NewVacations {
+        StartDate := SubStr(Vac, 1, 7) ; YYYY-MM
+        Count := 0
+        for OtherEmp in Employees {
+            if (OtherEmp["Position"] = Emp["Position"] && OtherEmp["RegNum"] != Emp["RegNum"]) {
+                for OtherVac in OtherEmp["FutureVacations"] {
+                    if (SubStr(OtherVac, 1, 7) = StartDate)
+                        Count++
+                }
+            }
+        }
+        if (Count >= 2) {
+            StatusText.Value := "Error: Too many " . Emp["Position"] . "s scheduled in " . StartDate . "."
+            return
+        }
+    }
+    
+    ; Save changes
+    Emp["FutureVacations"] := NewVacations
+    ; Update ListView future vacation columns (2025 and 2026)
+    RowData := [Emp["Name"], Emp["RegNum"], Emp["Dept"], Emp["Position"], Emp["HireDate"]]
+    for i, Vac in Emp["PastVacations"]
+        RowData.Push(Vac)
+    while RowData.Length < 10
+        RowData.Push("")
+    for i, Vac in NewVacations
+        RowData.Push(Vac)
+    while RowData.Length < 12
+        RowData.Push("")
+    LV.Modify(Sel, "", RowData*)
+    FileWrite(JSON.stringify(Employees), DataFile)
+    StatusText.Value := "Vacations updated for " . Emp["Name"]
+}
+
+; Map function for arrays
+ArrayMap(arr, fn) {
+    result := []
+    for item in arr
+        result.Push(fn(item))
+    return result
+}
+
+; DateTime class for date calculations
+class DateTime {
+    __New(dateStr) {
+        this.Date := dateStr
+    }
+    Diff(other, unit) {
+        d1 := DateParse(this.Date)
+        d2 := DateParse(other.Date)
+        return (d1 - d2) // (unit = "Years" ? 365.25 * 24 * 60 * 60 : 1)
+    }
+}
+
+; Parse date string to timestamp
+DateParse(dateStr) {
+    RegExMatch(dateStr, "(\d{4})-(\d{2})-(\d{2})", &m)
+    return Date(m[1] m[2] m[3])
+}

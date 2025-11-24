@@ -1,0 +1,3 @@
+﻿#Requires AutoHotkey v2.0
+msgbox "abc123" ~= "\d"	;	regexmatch
+MsgBox MyVar ?? "Default value" ; same as myvar ? myvar : 'default value'

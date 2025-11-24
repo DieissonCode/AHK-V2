@@ -1,0 +1,105 @@
+﻿;   https://www.autohotkey.com/boards/viewtopic.php?style=7&f=83&t=132016
+LineStr(&S, P, C:="", D:=Unset)                ;  LineStr v0.99 by SKAN for ah2 on D341/D77O @ autohotkey.com/r?t=132016
+{
+    D := ( IsSet(D) = 0 ) ?  ( InStr(S, "`r`n", 1) ? "`r`n" : InStr(S, "`n", 1) ? "`n" : InStr(S, "`r", 1) ? "`r" : "" )
+                          :  ( InStr(S, D, 1)  ? D : "" )
+
+    Local  F   :=  0
+        ,  DL  :=  StrLen(D)
+        ,  L   :=  StrLen(S)
+        ,  P1  :=  L && P   ?  ( P != 1  && DL  &&  InStr(S, D, 1) && (F := InStr(S, D, 1, P>0 ? 1 : -1, P>0 ? P-1 : P))
+                                 ? F+DL : 0 ) : 0
+        ,  P2  :=  C != 0   ?  ( C != "" && DL  &&  (F := InStr(S, D, 1, C>0 ? (F ? F+DL : 1) : -1, C))
+                                 ? F-1  : L ) : 0
+
+    Return SubStr(S, ( P<2 && (IsNumber(C) ? C>0 : 1) && P1=0 && P2>0 ? (P1 := 1) : P1 ), ( P2 >= P1 ? P2 - P1 + 1 : 0))
+}
+
+/*
+    Parameters
+
+      S = Source Text
+      P = Starting line
+      C = Line count
+      D = Delimiter
+
+    Local vars
+
+      F   = FoundPos for InStr() calls
+      DL  = Length of Delimiter
+      L   = Length of Source text
+      P1  = Starting postion
+      P2  = Ending position
+*/
+
+
+#Requires AutoHotkey v2.0
+#Warn
+#SingleInstance
+
+
+H1  :=  "1`r2`r3`r4`r5`r6`r7`r8`r9"
+H2  :=  "
+        (  LTrim
+
+           Line_2
+           Line_3
+           Line_4
+           Line_5
+
+           Line_7
+           Line_8
+           Line_9
+        )"
+H3  :=  "Line_1"
+
+Loop 3
+{
+    H := H%A_Index%
+
+    Line  :=  "`n---------------------------------------`n"
+    Text  :=  "Haystack:" Line H Line "`n"
+
+    MsgBox( Text "Extract first line:`nLineStr(&H, 1, 1)`n`nExtracted:"                        Line LineStr(&H, 1, 1)    Line )
+    MsgBox( Text "Extract 2 lines from second line:`nLineStr(&H, 2, 2)`n`nExtracted:"          Line LineStr(&H, 2, 2)    Line )
+    MsgBox( Text "Extract line 3:`nLineStr(&H, 3, 1)`n`nExtracted:"                            Line LineStr(&H, 3, 1)    Line )
+    MsgBox( Text "Extract all starting from fifth line:`nLineStr(&H, 5)`n`nExtracted:"         Line LineStr(&H, 5)       Line )
+    MsgBox( Text "Extract 3 lines from fifth line:`nLineStr(&H, 5, 3)`n`nExtracted:"           Line LineStr(&H, 5, 3)    Line )
+    MsgBox( Text "Extract last line:`nLineStr(&H, -1)`n`nExtracted:"                           Line LineStr(&H, -1)      Line )
+    MsgBox( Text "Extract last 2 lines:`nLineStr(&H, -2)`n`nExtracted:"                        Line LineStr(&H, -2)      Line )
+    MsgBox( Text "Extract 2 lines preceding last line:`nLineStr(&H, -3, 2)`n`nExtracted:"      Line LineStr(&H, -3, 2)   Line )
+    MsgBox( Text "Extract last 3 and exclude last line:`nLineStr(&H, -3, -1)`n`nExtracted:"    Line LineStr(&H, -3, -1)  Line )
+    MsgBox( Text "Extract all lines except first and last:`nLineStr(&H, 2, -1)`n`nExtracted:"  Line LineStr(&H, 2, -1)   Line )
+    MsgBox( Text "Extract 0 lines from line one:`nLineStr(&H, 1, 0)`n`nExtracted:"             Line LineStr(&H, 1, 0)    Line )
+}
+
+InLineStr(&Haystack, Needle, CaseSense := unset, StartingPos := unset, Occurrence := unset)  ;  Wrapper for InStr()
+{ ; Returns line number that contains the search text.     By SKAN for ah2 on D77O/D77P @ autohotkey.com/r?t=132016
+    Local  F          :=  0
+        ,  LineCount  :=  0
+        ,  Num        :=  Ord(Needle)
+        ,  Nul        :=  0
+        ,  pStr       :=  StrPtr(Haystack)
+
+    If ( Num < 0x10000 )
+         F := InStr(Haystack, Needle, CaseSense ?? unset, StartingPos ?? unset, Occurrence ?? unset)
+
+    If ( F && pStr += (F-1)*2 )
+         NumPut("ushort", Nul, pStr)
+       , StrReplace(Haystack, "`n", "`n", True, &LineCount)
+       , NumPut("ushort", Num, pStr)
+
+    %A_ThisFunc%.Pos  :=  F
+    Return F ? LineCount + 1 : 0
+}
+
+#Requires AutoHotkey v2.0
+#Warn
+#SingleInstance
+;#Include <LineStr>
+
+H      :=  FileRead("C:\Program Files\AutoHotkey\license.txt")
+sLine  :=  InLineStr(&H, "PCRE is a library", True, -1)
+eLine  :=  InLineStr(&H, "C++", True, InLineStr.Pos)
+
+MsgBox sLine ", " eLine ; 287, 295

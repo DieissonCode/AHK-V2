@@ -1,0 +1,33 @@
+﻿#Requires	AutoHotkey v2.0
+#Include	C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk2
+h := Http()
+ip := '10.2.78.131'
+arg1 := Float(-0.01)	;	←-0.01	→	-0.99	|	0.99 → 0.01→ pan
+arg2 := -0.01		;	↑-0.01	→	-0.99↓	tilt
+arg3 := 1		;	-0	→	1+	zoom
+
+move := Gui()
+move.Add('Button', 'x10 y20 w40 h40 ','1')
+move.Add('Button', 'x60 y20 w40 h40 ','2')
+move.Add('Button', 'x110 y20 w40 h40 ','3')
+move.Add('Button', 'x10 y70 w40 h40 ','4')
+move.Add('Button', 'x110 y70 w40 h40 ','→').OnEvent('Click', right)
+move.Add('Button', 'x10 y120 w40 h40 ','6')
+move.Add('Button', 'x60 y120 w40 h40 ','7')
+move.Add('Button', 'x110 y120 w40 h40 ','8')
+move.Add('Button', 'x60 y70 w40 h40 ','Get')
+; Generated using SmartGUI Creator for SciTE
+move.Show()
+return
+
+right(*)	{
+	Global	arg1 := arg1 + Float(-0.010)
+	exec()
+}
+
+exec()	{
+	global arg1, arg2, arg3, ip
+	url := 'http://admin:tq8hSKWzy5A@' ip '/cgi-bin/ptz.cgi?action=moveAbsolutely&channel=1&arg1=' arg1 '&arg2=' arg2 '&arg3=' arg3
+	OutputDebug url
+	h.request(url)
+}

@@ -1,0 +1,20 @@
+﻿;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.0.0.7
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = KAH - Test
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\timer.ico
+#Requires AutoHotkey v2.0
+#Warn All, Off
+#SingleInstance Force
+; #NoTrayIcon
+
+Loop	{
+	ToolTip A_Index
+	Sleep(1000)
+}
+
+end::{
+ExitApp 0
+}

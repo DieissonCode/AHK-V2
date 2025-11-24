@@ -1,0 +1,102 @@
+﻿#Requires AutoHotkey v2.0
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA_Browser.ahk
+#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA.ahk
+F2:: {
+	chromeTitle := "ahk_class Chrome_WidgetWin_1"
+	__ := WinGetControls(chromeTitle)
+	if (chromeWindow := WinExist(chromeTitle)) {
+		if (WinActive(chromeTitle)) {
+			cUIA := UIA_Browser()
+			user := cUIA.WaitElement({ AutomationId: "login_user" })
+			pass := cUIA.WaitElement({ AutomationId: "login_psw" })
+			user.Value := "admin"
+			pass.Value := "tq8hSKWzy5A"
+			cUIA.FindElement({ Type: "50005", and: [{ Name: "Login" }] }).Click()
+			cUIA.WaitElement({ Type: "50005", and: [{ Name: "Event" }] })
+			Sleep 100
+			cUIA.FindElement({ Type: "50005", and: [{ Name: "Event" }] }).Click()
+			; __ := cUIA.GetCurrentDocumentElement().DumpAll()
+			; A_Clipboard :=__
+		}
+		else {
+			MsgBox("Failed to activate Chrome window.")
+			ExitApp
+		}
+	}
+	else {
+		MsgBox("Chrome window not found. Make sure Chrome is open with the correct profile.")
+		ExitApp
+	}
+
+}
+
+F3:: {
+	ChromeTitle := "ahk_class Chrome_WidgetWin_1"
+	__ := WinGetControls(ChromeTitle)
+	if (chromeWindow := WinExist(ChromeTitle)) {
+		cUIA := UIA_Browser()
+		__ := cUIA.GetCurrentDocumentElement().DumpAll()
+		A_Clipboard := __
+	}
+}
+
+F4:: {
+	ChromeTitle := "ahk_class Chrome_WidgetWin_1"
+	WinGetControls(ChromeTitle)
+	if (WinExist(ChromeTitle)) {
+		cUIA := UIA_Browser()
+
+		CoordMode('Pixel', 'Window')
+		Loop
+			If ImageSearch(&FoundX, &FoundY, 8, 139, 1921, 202, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814165009.png') {
+				Click(FoundX, FoundY, 'Left', 1)
+				Break
+			}
+		Sleep(1000)
+		cUIA.WaitElement({ Type: "50005", and: [{ Name: "Event" }] }).Click()
+		Loop
+			If ImageSearch(&FoundX, &FoundY, 11, 195, 152, 474, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814164925.png') {
+				Click(FoundX, FoundY, 'Left', 1)
+				Break
+			}
+		Sleep 5000
+
+		cUIA.WaitElement({ Name: "Enable", and: [{ AutomationId: "v_m_enable" }] })
+		If !ImageSearch(&FoundX, &FoundY, 196, 241, 239, 272, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814170113.png')
+			cUIA.FindElement({ Type: "50002", and: [{ Name: "Enable" }], and: [{ AutomationId: "v_m_enable" }] }).Click()
+
+		If ImageSearch(&FoundX, &FoundY, 200, 248, 335, 593, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814170940.png')    ;   record
+			Click(FoundX, FoundY, 'Left', 1)
+
+		If ImageSearch(&FoundX, &FoundY, 200, 248, 335, 593, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814172300.png')    ;   relay
+			Click(FoundX, FoundY, 'Left', 1)
+
+		If ImageSearch(&FoundX, &FoundY, 200, 248, 335, 593, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814171102.png')    ;   send mail
+			Click(FoundX, FoundY, 'Left', 1)
+
+		If ImageSearch(&FoundX, &FoundY, 200, 248, 335, 593, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814171149.png')    ;   snapshot
+			Click(FoundX, FoundY, 'Left', 1)
+
+		cUIA.WaitElement({ Name: "Setting", and: [{ AutomationId: "v_m_time" }] })
+		cUIA.FindElement({ Name: "Setting", and: [{ AutomationId: "v_m_time" }] }).Click()
+
+		cUIA.WaitElement({ Name: "All" })
+		cUIA.FindElement({ Name: "All" }).Click()
+		If !ImageSearch(&FoundX, &FoundY, 607, 659, 684, 683, 'C:\Users\parana\AppData\Roaming\MacroCreator\Screenshots\Screen_20240814170113.png')
+			cUIA.FindElement({ Name: "Period2" }).Click()
+
+	}
+}
+; F4:: {
+;     chromeTitle := "ahk_class Chrome_WidgetWin_1"
+;     __:= WinGetControls(chromeTitle)
+;     if (chromeWindow := WinExist(chromeTitle))	{
+;         cUIA := UIA_Browser()
+;         cUIA.FindElement({Type:"50004", AND:[{Name:"All"}]}).Click()
+;         cUIA.FindElement({Type:"50004", AND:[{Name:"Period2"}]}).Click()
+;         user := cUIA.WaitElement({AutomationId:"login_user"})
+;         pass := cUIA.WaitElement({AutomationId:"login_psw"})
+;         user.Value := "admin"
+;         pass.Value := "tq8hSKWzy5A"
+;     }
+; }

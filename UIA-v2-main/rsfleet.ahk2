@@ -1,0 +1,31 @@
+﻿#Requires AutoHotkey v2.0
+#SingleInstance Force
+
+url := 'http://rsfleet.com.br/views/detalhamentoTab/detalhamento.php?placa=ISJ5I05&ini=09/10/2024%2000:00&fim=09/10/2024%2023:59&backup=F'
+; /*
+	#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA_Browser.ahk
+	#Include C:\AutoHotkey\AHK V2\UIA-v2-main\Lib\UIA.ahk
+
+	WinWaitActive "ahk_exe chrome.exe"
+	cUIA := UIA_Browser()
+	F2::	{
+		A_Clipboard := ""
+		A_Clipboard := cUIA.GetCurrentDocumentElement().DumpAll() 
+		ClipWait 1
+		ExitApp
+	}
+
+
+	F3::	{
+		cUIA.FindElement({Type:'50011', Name: 'Enviar Comando', LocalizedType:'item de menu'}).Click()
+		cUIA.WaitElement({Type: '50025', Name: 'Envio de Comandos', LocalizedType: 'caixa de diálogo'})
+		cUIA.FindElement({Type:'50003', Name: 'Equipamento:', LocalizedType: "caixa de combinação"}).Value := 'GPRS'
+		cUIA.FindElement([{Name:"Equipamento"}, {ClassName:"gNO89b"}]).Click() 
+		; Sleep 1500
+		; Send('{Enter}')
+		; cUIA.FindElement({Type:'50003', Name: 'Comando:', LocalizedType: "caixa de combinação"}).Value := 'Bloqueio'
+		; Sleep 1500
+		; Send('{Enter}')
+		; cUIA.FindElement({Name:"Enviar Comando", LocalizedType:"botão"}).Click()
+	}
+; */

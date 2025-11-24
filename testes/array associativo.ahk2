@@ -1,0 +1,15 @@
+Array2 := { Auto:{A:"AA",B:"AA"}
+        ,   Hot:{A:"CC",B:"DD"}
+        ,   Key:{A:"EE",B:"FF"}
+        ,   L:{A:"GG",B:"HH"}}
+; MsgBox Array2.Hot.B
+_Array1 := Map()
+__array1:= []
+_Auto := {a:'auto'}
+_Hot := {b:'hot', bb: _auto}
+_Key := {c:'key'}
+_L := {d:'L'}
+__array1.InsertAt(1,_hot)
+_Array1.Set( _key,_auto, Array2.Hot.B,_Hot, 'Nome3',_Key, 'Nome4',_L)
+
+msgbox _Array1["DD"].bb.a "`n" __array1['1'].b

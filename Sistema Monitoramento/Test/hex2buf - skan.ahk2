@@ -1,0 +1,80 @@
+﻿#Requires AutoHotkey v2.0
+
+; Suggested lib name: HexBuf.ah2
+
+HexToBuf(&Hex, VirProt := 0)            ; v0.10 by SKAN for ah2 on D797/D799 @ autohotkey.com/r?p=584265
+{
+    Static mcode
+
+    If (  IsSet(mcode) = 0  )
+          mcode := Buffer(320, 0)
+
+       ,  ( A_PtrSize = 8 )
+            ? NumPut( "int64",0xebd23145ffc88353, "int64",0x4ed3894501c0832a, "int64",0x191c8a461a1cb60f
+                    , "int64",0x48d3894404e3c041, "int64",0x1c0a44021a5cb60f, "int64",0x41191c8845c38919
+                    , "int64",0xd172c2394504c283, "int64",0xc35b, mcode )
+            : NumPut( "int64",0x8b1024448b575653, "int64",0xf631ffc983142454, "int64",0x8a323cb60f411deb
+                    , "int64",0x7cb60f04e3c0381c, "int64",0x247c8b381c0a0232, "int64",0x3b04c6830f1c881c
+                    , "int64",0x5b5e5fdd72182474, "int64",0xc3,   mcode )
+
+       ,  DllCall("Kernel32\VirtualProtect", "ptr",mcode, "ptr",64, "int",0x40, "intp",0)
+       ,  NumPut( "int64",0x0F0E0D0C0B0A, NumPut( "int64",0x0F0E0D0C0B0A
+       ,  NumPut( "int64",0x0807060504030201,  "char",0x9, mcode, 64 + 49) + 7) + 24)    ;  lookup table
+
+    Local  Sz  :=  StrLen(Hex) // 2,  Trg  :=  Buffer(Sz)
+
+    Return ( DllCall(mcode, "ptr",mcode.ptr + 64, "str",Hex, "int",Sz * 4, "ptr",Trg, "cdecl")
+           , VirProt ? DllCall("Kernel32\VirtualProtect", "ptr",Trg, "ptr",Sz, "int",0x40, "intp",0) : 0
+           , Trg )
+}
+
+
+BufToHex(&Buf, &Hex, Caps := 0)         ; v0.10 by SKAN for ah2 on D799/D79A @ autohotkey.com/r?p=584265
+{
+    Static mcode
+
+    If (  IsSet(mcode) = 0  )
+          mcode := Buffer(96, 0)
+
+       ,  ( A_PtrSize = 8 )
+            ? NumPut( "int64",0x46c2894138ebc031, "int64",0x41dab60f4512148a, "int64",0x0f46db894504fbc1
+                    , "int64",0x45d2b60f45191cb6, "int64",0x0f460fe28341d289, "int64",0x4510e2c1411114b6
+                    , "int64",0xc18349198945d309, "int64",0x72c0394401c08304, "int64",0x0000000001c741c3
+                    , "int64",0xc3, mcode)
+            : NumPut( "int64",0x8b1024448b575653, "int64",0x311c244c8b142454, "int64",0xb60f321c8a22ebf6
+                    , "int64",0x383cb60f04ffc1fb, "int64",0xb60f0fe383dbb60f, "int64",0x89df0910e3c1181c
+                    , "int64",0x24743b4604c18339, "int64",0x5e5f002183d87218, "int64",0xc35b, mcode)
+
+        ,  StrPut(Caps ? "0123456789ABCDEF" : "0123456789abcdef", mcode.ptr + 80, 16, "") ; lookup table
+        ,  DllCall("Kernel32\VirtualProtect", "ptr",mCode, "ptr",80, "int",0x40, "intp",0)
+
+        Return ( VarSetStrCapacity(&Hex, Buf.Size * 2 + 2)
+               , DllCall(mcode ,"ptr",mcode.ptr + 80, "ptr",Buf, "uint",Buf.Size, "str",Hex, "cdecl")
+               , StrLen(Hex) )
+}
+
+
+BufToHexSp(&Buf, &Hex, Caps := 0)       ; v0.10 by SKAN for ah2 on D79A/D79A @ autohotkey.com/r?p=584265
+{
+    Static mcode
+
+    If (  IsSet(mcode) = 0  )
+          mcode := Buffer(104, 0)
+
+       ,  ( A_PtrSize = 8 )
+            ? NumPut( "int64",0x46c2894147ebc031, "int64",0x04fac1411214b60f, "int64",0x14b60f4666d28945
+                    , "int64",0xc183491189456611, "int64",0x14b60f46c2894102, "int64",0x0fe28341d2894512
+                    , "int64",0x45661114b60f4666, "int64",0x416602c183491189, "int64",0x02c18349002001c7
+                    , "int64",0xb472c0394401c083, "int64",0xc3000001c74166, mcode)
+            : NumPut( "int64",0x8b1024448b575653, "int64",0x8b18244c8b142454, "int64",0x0f2debff311c2474
+                    , "int64",0x0f6604fbc13a1cb6, "int64",0xc6831e8966181cb6, "int64",0x0fe3833a1cb60f02
+                    , "int64",0x1e8966181cb60f66, "int64",0x002006c76602c683, "int64",0xcf72cf394702c683
+                    , "int64",0x5b5e5f000006c766, "int64",0xc3, mcode)
+
+        ,  StrPut(Caps ? "0123456789ABCDEF" : "0123456789abcdef", mcode.ptr + 88, 16, "") ; lookup table
+        ,  DllCall("Kernel32\VirtualProtect", "ptr",mcode, "ptr",88, "int",0x40, "intp",0)
+
+        Return ( VarSetStrCapacity(&Hex, Buf.Size * 3 + 1)
+               , DllCall(mcode ,"ptr",mcode.ptr + 88, "ptr",Buf, "uint",Buf.Size, "str",Hex, "cdecl")
+               , StrLen(Hex) )
+}

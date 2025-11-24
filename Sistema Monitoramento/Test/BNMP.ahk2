@@ -1,0 +1,31 @@
+﻿#Requires AutoHotkey v2.0
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk2
+
+url := 'https://api-publica.datajud.cnj.jus.br/api_publica_trf1/_search'
+data := '{ "username": "", "password": "", "clientId": "bnmp", "codigoOrgao": "30" }'
+data := '{ "query": { "match": { "numeroProcesso": "50016167820248210112" } } }'
+auth := 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+__ := request({url : url, auth : auth})
+
+request( params*) {
+	if	!params[1].HasOwnProp('URL')
+		Return 'Params[1].URL não informado'
+	Local r	:= ComObject( "Msxml2.XMLHTTP" )
+	r.Open(	params[1].HasOwnProp('method') ? params[1].method : "GET"
+		,	params[1].url
+		,	params[1].HasOwnProp('assync') ? params[1].assync : false )
+	r.SetRequestHeader( "Content-Type", "application/json" )
+	Try	If	params[1].HasOwnProp('auth')
+		r.SetRequestHeader( "Authorization", "ApiKey " params[1].auth )
+	r.SetRequestHeader( "If-Modified-Since", "Sat, 1 Jan 2000 00:00:00 GMT" )
+	if params[1].HasOwnProp('data')	{
+		Try r.Send(params[1].data)
+	}
+	Else	{
+		Try r.Send()
+	}
+	__ := Trim(Trim(r.responseText,'`n'),'`r')
+	MsgBox	A_Clipboard :=r.responseText
+	Try Return __
+
+}

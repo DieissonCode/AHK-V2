@@ -1,0 +1,18 @@
+﻿;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.0.2.3
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = KAH - Moni Disparo Sonoro
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\timer.ico
+#Requires AutoHotkey v2.0
+#Warn All, Off
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
+#SingleInstance Force
+Persistent
+show_tooltip := 0
+OnMessage 0x004A, readCommand
+; new_instance("msgbox 'teste'")
+_['teste'] := "msgbox 'teste2'"
+
+Return

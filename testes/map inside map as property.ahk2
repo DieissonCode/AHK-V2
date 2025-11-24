@@ -1,0 +1,38 @@
+﻿#Requires AutoHotkey v2.0
+
+cust      := Map()
+cust.a	:= 1
+cust.b	:=	2
+_cust := Map()
+_cust.c  := cust
+MsgBox cust.b "`n" _cust.c.a
+
+; cust      := Map('a', 1)
+; cust['b'] := 2
+; _cust := Map( 'a', cust )
+; MsgBox cust['b'] "`n" _cust['a']['b']
+
+oMap := Map()
+oMap.CaseSense := "Off"
+oMap.Set("Red", "ff0000", "Green", "00ff00", "Deep Blue", "0000ff")
+
+oMap.DefineProp("__get", { Call: Get })
+
+oMap.Default := "Def"
+
+
+MsgBox oMap['deep blue']
+MsgBox oMap.red
+
+Get(this, Key, Params) {
+
+	; in this way Return the value of MapObj.Default, if defined:
+	try {
+		if !Params.Length
+			return this[key] ;Or this.Get(Key)
+	
+		return this[key][Params*]
+		
+	} catch UnsetItemError
+		throw UnsetItemError(Key)
+}

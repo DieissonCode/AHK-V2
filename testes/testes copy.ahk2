@@ -1,0 +1,12 @@
+﻿z()
+z() {
+a := map()
+teste := '15253'
+a[teste] := Map()
+a[teste].a := 'teste 1'
+Msgbox	a['15253'].a
+15252 := map()
+15252   := a.Clone()
+Msgbox	a['15252'].a
+Msgbox
+}
