@@ -23,7 +23,7 @@ _for_delete := {
 	Coluna_1_NLayout_4: 1, Coluna_2_NLayout_4: 1, Coluna_3_NLayout_4: 1, Coluna_4_NLayout_4: 1
 }
 
-MyGui := Gui(, "KAH - Alternador de Colunas")
+MyGui := Gui('-DPIScale', "KAH - Alternador de Colunas")
 MyGui.BackColor := "0x121212"
 
 ; ===== CORES =====
@@ -33,7 +33,7 @@ MyGui.BackColor := "0x121212"
 	cor_texto := "0x9e9050"
 	cor_selecionado := "0x4CAF50"
 	cor_bloqueado := "0xFF5252"
-	cor_botao := "0x1976D2"
+	cor_botao := "0x42A5F5"
 
 ; ===== SEÇÃO: COLUNAS (ORIGEM E DESTINO) =====
 ; Painel de fundo ORIGEM
@@ -110,20 +110,19 @@ MyGui.BackColor := "0x121212"
 	ctl := MyGui.Add("Button", "w110 h30 x10 y280 v_ok Background" cor_selecionado,		"✓ EXECUTAR")
 	ctl.OnEvent("Click", (*) => Execute())
 
-	ctl := MyGui.Add("Button", "w110 h30 x130 y280 v_reset Background" cor_botao,		"⟲ RESETAR")
-	ctl.OnEvent("Click", (*) => OnUndo())
-
-	ctl := MyGui.Add("Button", "w110 h30 x250 y280 v_cancel Background" cor_bloqueado,	"✕ CANCELAR")
+	ctl := MyGui.Add("Button", "w110 h30 x130 y280 v_cancel Background" cor_botao,		"⟲ CANCELAR")
 	ctl.OnEvent("Click", (*) => OnCancel())
 
+	ctl := MyGui.Add("Button", "w110 h30 x250 y280 v_exit Background" cor_bloqueado,	"✕ SAIR")
+	ctl.OnEvent("Click", (*) => OnExit())
+
 ; Rodapé com informações
-MyGui.SetFont("s8 c" cor_texto " Bold")
-ctl := MyGui.Add("Text", "w350 h20 x10 y330 Background" cor_painel " Center", "Alternador de Colunas v0.0.2.0")
-ctl.Opt("+BackgroundTrans")
+	MyGui.SetFont("s8 c" cor_texto " Bold")
+	ctl := MyGui.Add("Text", "w350 h20 x10 y330 Background" cor_painel " Center", "Alternador de Colunas")
+	ctl.Opt("+BackgroundTrans")
 
-MyGui.OnEvent("Close", (*) => ExitApp())
-MyGui.Show("w370 h365")
-
+	MyGui.OnEvent("Close", (*) => ExitApp())
+	MyGui.Show("w370 h365")
 ; ===== FUNÇÕES =====
 
 CheckColumns() {
@@ -231,7 +230,7 @@ Execute() {
 	}
 }
 
-OnUndo() {
+OnCancel() {
 	try {
 		DisableButtons()
 
@@ -249,7 +248,7 @@ OnUndo() {
 	}
 }
 
-OnCancel() {
+OnExit() {
 	ExitApp()
 }
 
@@ -273,14 +272,14 @@ CheckOrigemDestino() {
 
 DisableButtons() {
 	MyGui["_ok"].Enabled := false
+	MyGui["_exit"].Enabled := false
 	MyGui["_cancel"].Enabled := false
-	MyGui["_reset"].Enabled := false
 }
 
 EnableButtons() {
 	MyGui["_ok"].Enabled := true
+	MyGui["_exit"].Enabled := true
 	MyGui["_cancel"].Enabled := true
-	MyGui["_reset"].Enabled := true
 }
 
 ResetRadios() {
@@ -373,4 +372,3 @@ GetColunaFromIp(ip, colunas) {
 			return A_Index
 	}
 }
-F5::Reload()
