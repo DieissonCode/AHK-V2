@@ -3,12 +3,12 @@
 ## Idioma
 
 -   Escreva todas as mensagens de commit em português brasileiro (pt-BR) em linguagem técnica clara e objetiva. 
--   Mantenha apenas os prefixos (feat, fix, refactor, perf, chore) em inglês.
+-   Mantenha apenas os prefixos (feat, fix, refactor, perf, chore, add, fix, update) em inglês.
 
 ## Diretrizes para Mensagens de Commit
 
 -   Escreva mensagens de commit curtas e claras. 
--   Comece com um verbo no imperativo (ex.: "Add", "Fix", "Update"). 
+-   Comece com um verbo no imperativo EM INGLÊS (ex.: "Add", "Fix", "Update"). 
 -   Insira uma linha em branco entre o assunto e o corpo. 
 -   Explique o quê e por quê, nunca como.
 -   Referencie números de issues quando relevante (ex.: "Fixes #123"). 
