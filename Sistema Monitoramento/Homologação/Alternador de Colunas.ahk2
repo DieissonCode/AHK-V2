@@ -1,6 +1,6 @@
 ﻿;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.2.3
+;@Ahk2Exe-Let U_FileVersion = 0.0.2.4
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Alternador de Colunas
 ;@Ahk2Exe-SetDescription %U_C%
@@ -225,7 +225,7 @@ Execute() {
 		MsgBox("✓ Layouts copiados com sucesso!")
 	}
 	catch as err {
-		MsgBox("❌ Erro: " err.What "`nExtra: " err.Extra)
+		MsgBox( "Execute()`n`n" "❌ Erro: " err.What "`nExtra: " err.Extra)
 		EnableButtons()
 	}
 }
@@ -347,7 +347,7 @@ ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	_monitores := dguard._getWorkstationInfo(Map('server', _to)).data["monitor"]
 	
 	;	Criar novos layouts no servidor de destino e pegar informações das câmeras
-	loop _monitores_from.Count {
+	loop _from_layouts.Count {
 		layoutPeriod := MyGui['_day'].Value ? "_Layout" : "_NLayout"
 		_new_layout := dguardLayouts.Create(Map('server', _to, 'name',  'Coluna_' GetColunaFromIp(_from, colunasMap) layoutPeriod '_' A_Index))
 		_new_layout_day_guids.Push(_new_layout)
@@ -356,7 +356,7 @@ ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	}
 
 	;	Exibir layouts nas estações de trabalho
-	loop _monitores.Count {
+	loop _from_layouts.Count {
 				DguardLayouts.show(Map(	'server', _to
 									,	'monitorGuid', _monitores[A_Index]
 									,	'layoutGuid', A_Hour >= 7 && A_Hour <= 19
