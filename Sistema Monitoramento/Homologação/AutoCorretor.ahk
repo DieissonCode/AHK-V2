@@ -9,6 +9,13 @@
 #Requires AutoHotkey v2.0
 #Warn All, off
 
+;{	Configurações de envio - melhora confiabilidade no Windows 11
+	SendMode("Input")
+	SetKeyDelay(-1, -1)
+	A_HotkeyInterval := 2000
+	A_MaxHotkeysPerInterval := 200
+;}
+
 if	!A_IsCompiled
 	TraySetIcon("C:\AHK\icones\autocorretor.ico")
 ;{	Includes
@@ -107,7 +114,8 @@ LoadHotstrings() {
 			nome := Format('{:T}', h[A_Index+1][2])
 			cargo := Format('{:T}', h[A_Index+1][3])
 			
-			Hotstring(':T:#' matricula, nome ' (' cargo ', Matrícula ' matricula ')')
+			textoCompleto := nome ' (' cargo ', Matrícula ' matricula ')'
+			Hotstring(':T:#' matricula, SendTextSafe.Bind(textoCompleto))
 			totalLoaded++
 		}
 	;}
@@ -115,6 +123,13 @@ LoadHotstrings() {
 	; Volta ao contexto global (opcional)
 	HotIf()
 	TrayTip('✓ ' totalLoaded ' correções carregadas!', 'AutoCorretor', 49)
+}
+
+SendTextSafe(texto, *) {
+	oldDelay := A_KeyDelay
+	SetKeyDelay(0, 10)
+	SendText(texto)
+	SetKeyDelay(oldDelay)
 }
 
 #z:: {
