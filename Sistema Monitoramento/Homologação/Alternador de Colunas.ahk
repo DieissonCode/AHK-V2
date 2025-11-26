@@ -1,6 +1,6 @@
 ﻿;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.2.5
+;@Ahk2Exe-Let U_FileVersion = 0.0.2.6
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Alternador de Colunas
 ;@Ahk2Exe-SetDescription %U_C%
@@ -290,11 +290,11 @@ GetColunasMap(ip) {
 	switch ip {
 		case "192.9.100.102":
 			return {1: "192.9.100.101", 2: "192.9.100.102", 3: "192.9.100.103", 4: "192.9.100.104", count: 4}
-		case "192.9.100.100", "192.9.100.106":
+		case "192.9.100.106":
 			return {1: "192.9.100.105", 2: "192.9.100.106", 3: "192.9.100.107", 4: "192.9.100.108", count: 4}
 		case "192.9.100.109":
 			return {1: "192.9.100.109", 2: "192.9.100.110", 3: "192.9.100.111", 4: "192.9.100.112", count: 4}
-		case "192.9.100.114":
+		case "192.9.100.100", "192.9.100.114":
 			return {1: "192.9.100.113", 2: "192.9.100.114", 3: "192.9.100.115", 4: "192.9.100.116", count: 4}
 		case "192.9.100.118":
 			return {1: "192.9.100.117", 2: "192.9.100.118", 3: "192.9.100.119", 4: "192.9.100.120", count: 4}
@@ -341,17 +341,19 @@ ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	_monitores := dguard._getWorkstationInfo(Map('server', _to)).data["monitor"]
 	
 	;	Criar novos layouts no servidor de destino e pegar informações das câmeras
-	loop _from_layouts.Count {
-		layoutPeriod := MyGui['_day'].Value ? "_Layout" : "_NLayout"
-		_new_layout := dguardLayouts.Create(Map('server', _to, 'name',  'Coluna_' GetColunaFromIp(_from, colunasMap) layoutPeriod '_' A_Index))
-		_updated_layout_guids.Push(_new_layout)
-		_layout_cam := dguardLayouts.getCameras(Map('server', _from, 'layoutGuid', _from_layouts[layoutPeriod A_Index].guid))
-		InsertCam(_to, OrderCam(_layout_cam), _new_layout)
+	loop _monitores.Count {
+		TRY	{
+			layoutPeriod := MyGui['_day'].Value ? "_Layout" : "_NLayout"
+			_new_layout := dguardLayouts.Create(Map('server', _to, 'name',  'Coluna_' GetColunaFromIp(_from, colunasMap) layoutPeriod '_' A_Index))
+			_updated_layout_guids.Push(_new_layout)
+			_layout_cam := dguardLayouts.getCameras(Map('server', _from, 'layoutGuid', _from_layouts[layoutPeriod A_Index].guid))
+			InsertCam(_to, OrderCam(_layout_cam), _new_layout)
+		}
 	}
 
 	;	Exibir layouts nas estações de trabalho
-	loop _from_layouts.Count {
-				DguardLayouts.show(Map(	'server', _to
+	loop _monitores.Count {
+			Try	DguardLayouts.show(Map(	'server', _to
 									,	'monitorGuid', _monitores[A_Index]
 									,	'layoutGuid', _updated_layout_guids[A_Index]))
 	}
