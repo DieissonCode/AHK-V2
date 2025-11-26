@@ -11,16 +11,16 @@ Persistent
 SetTitleMatchMode(2)
 FileEncoding('UTF-8')
 ;	Include
-	#Include ..\libs\functions.ahk2
-	#Include ..\libs\Class\Auth.ahk2
-	#Include ..\libs\Class\Dguard.ahk2
-	#Include ..\libs\Class\Email.ahk2
-	#Include ..\libs\Class\Http.ahk2
-	#Include ..\libs\Class\Json.ahk2
-	#Include ..\libs\Class\Notify.ahk2
-	#Include ..\libs\Class\Register.ahk2
-	#Include ..\libs\Class\Telegram.ahk2
-	#Include ..\libs\Class\Windows.ahk2
+	#Include ..\libs\functions.ahk
+	#Include ..\libs\Class\Auth.ahk
+	#Include ..\libs\Class\Dguard.ahk
+	#Include ..\libs\Class\Email.ahk
+	#Include ..\libs\Class\Http.ahk
+	#Include ..\libs\Class\Json.ahk
+	#Include ..\libs\Class\Notify.ahk
+	#Include ..\libs\Class\Register.ahk
+	#Include ..\libs\Class\Telegram.ahk
+	#Include ..\libs\Class\Windows.ahk
 ;	Variáveis
 	Global	tooltip_mode 	:=	0
 		,	disable_hahaha	:=	0
