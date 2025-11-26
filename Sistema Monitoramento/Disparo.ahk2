@@ -1,6 +1,6 @@
 ﻿;Save_To_Sql=1
 ;Keep_Versions=3
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.5
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.6
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Moni Disparo Sonoro
 ;@Ahk2Exe-SetDescription %U_C%
@@ -39,25 +39,25 @@ verificaEventos()	{
 
 	filter := ''
 	if(operador!= 0)
-		filter := ' OPERADORA = ' operador ' AND '
+		filter := ' OPERADORA = ' operador '`nAND'
 
 	select := 
 		(
-			"SELECT "
-			"	c.NOME, "
-			"	s.DESCRICAO, "
-			"	s.SETOR "
-			"FROM CLIENTES c "
-			"RIGHT join eventospendentes e "
-			"	ON c.CODIGO = e.CODIGOCLIENTE "
-			"LEFT join clientessetores s "
-			"	ON e.CODIGOCLIENTE = s.CLIENTE "
-			"WHERE " filter " s.SETOR = e.CODIGOSETOR "
-			" AND e.IDENTOCOR = 'E' "
-			" AND e.CODIGOOCORRENCIA = 130 "
-			" AND e.PRIORIDADE = 2 "
-			" AND e.TIPODISPARO = 0 "
-			" AND e.ATENDIMENTO IS NULL "
+			"SELECT`n"
+			"	c.NOME,`n"
+			"	s.DESCRICAO,`n"
+			"	s.SETOR`n"
+			"FROM CLIENTES c`n"
+			"RIGHT join eventospendentes e`n"
+			"	ON c.CODIGO = e.CODIGOCLIENTE`n"
+			"LEFT join clientessetores s`n"
+			"	ON e.CODIGOCLIENTE = s.CLIENTE`n"
+			"WHERE" filter " s.SETOR = e.CODIGOSETOR`n"
+			"	AND e.IDENTOCOR = 'E'`n"
+			"	AND (e.CODIGOOCORRENCIA = 130 OR e.CODIGOOCORRENCIA = 992)`n"
+			"	AND e.PRIORIDADE = 2`n"
+			"	AND e.TIPODISPARO = 0`n"
+			"	AND e.ATENDIMENTO IS NULL"
 		)
 
 	alarm := sql(select)
@@ -71,10 +71,10 @@ verificaEventos()	{
 		A_IconHidden := 1
 	opt :=	'BC=Red '
 		.	'MON=Primary '
-		.	'SHOW=Fade@1000 '
-		.	'HIDE=Fade@1000 '
+		.	'SHOW=Fade@500 '
+		.	'HIDE=Fade@500 '
 		.	'DG=1 '
-		.	'DUR=3 '
+		.	'DUR=5 '
 		.	'TS=14 '
 		.	'MS=11 '
 		.	'MFO=bold '
@@ -109,7 +109,7 @@ verificaEventos()	{
 				, opt)
 		}
 	A_IconTip := 'Operador ' operador '`nÚltima Verificação: ' datetime()
-	SetTimer verificaEventos, -5000
+	SetTimer verificaEventos, -6000
 }
 
 ; Função callback global que será chamada ao clicar
