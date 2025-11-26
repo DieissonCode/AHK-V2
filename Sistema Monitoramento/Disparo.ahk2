@@ -11,9 +11,9 @@
 #SingleInstance Force
 #NoTrayIcon
 
-#Include libs\functions.ahk2
-#Include libs\Class\Notify.ahk2
-#Include libs\Class\WindowManager.ahk2
+#Include libs\functions.ahk
+#Include libs\Class\Notify.ahk
+#Include libs\Class\WindowManager.ahk
 
 If !FileExist('C:\Seventh\Backup\sirene.wav') {
 	Try {
