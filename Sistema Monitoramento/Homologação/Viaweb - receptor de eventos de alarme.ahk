@@ -1,12 +1,12 @@
 ﻿#Warn	   All,	Off
 #Requires   AutoHotkey v2.0
-#Include	..\libs\class\socket.ahk2
+#Include	..\libs\class\socket.ahk
 	OutputDebug	"Incluido biblioteca`n`tSocket.ahk2"
 comando := ""
 z_functions	:= 0
-#Include	..\libs\functions.ahk2
+#Include	..\libs\functions.ahk
 	OutputDebug	"Incluido biblioteca`n`tFunctions.ahk2"
-#Include	..\libs\Class\Json.ahk2
+#Include	..\libs\Class\Json.ahk
 	OutputDebug	"Incluido biblioteca`n`tJson.ahk2"
 ;	Configurações
 	w	:=	405
