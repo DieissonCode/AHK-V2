@@ -1,5 +1,7 @@
 ﻿; MsgBox	MD5('teste')
 ;https://www.autohotkey.com/boards/viewtopic.php?f=83&t=133004
+#Requires AutoHotkey v2.0
+
 MD5(s) {
     size := StrPut(s, "UTF-8") - 1 ; bin has no null
     bin := Buffer(size)

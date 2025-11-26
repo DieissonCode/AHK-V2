@@ -1,10 +1,11 @@
-﻿/************************************************************************
+﻿/*
  * @description: JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
  * @date 2024/02/24
  * @version 1.0.7
- ***********************************************************************/
+ */
+#Requires AutoHotkey v2.0
 
 class JSON {
 	static null := ComValue(1, 0), true := ComValue(0xB, 1), false := ComValue(0xB, 0)

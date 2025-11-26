@@ -1,3 +1,4 @@
+#Requires AutoHotkey v2.0
 Try	if	IsSet(z_inc_folder)
 	Return
 

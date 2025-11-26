@@ -1,8 +1,9 @@
-﻿html:=	1
+﻿#Requires AutoHotkey v2.0
+html:=	1
 #Warn All, Off
 ;	Bibliotecas
 	z_functions	:= 0
-	#Include ..\libs\functions.ahk2
+	#Include ..\libs\functions.ahk
 ;	Variáveis
 	;	html
 		html_default:=	"	;	9BACC0

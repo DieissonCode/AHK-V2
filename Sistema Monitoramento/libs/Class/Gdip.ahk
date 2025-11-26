@@ -62,6 +62,7 @@
 	notes					if x or y omitted, then layered window will use its current coordinates
 						if w or h omitted then current width and height will be used
 */
+#Requires AutoHotkey v2.0
 UpdateLayeredWindow(hwnd, hdc, x:="", y:="", w:="", h:="", Alpha:=255)
 {
 	if ((x != "") && (y != "")) {

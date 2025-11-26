@@ -1,3 +1,4 @@
+#Requires AutoHotkey v2.0
 if	IsSet(z_inc_windows)
 	Return
 Global	z_inc_windows := 1

@@ -1,4 +1,4 @@
-﻿/********************************************************************************************
+﻿/*
  * Notify - Simplifies the creation and display of notification GUIs.
  * @author Martin Chartier (XMCQCX)
  * @date 2025/04/26
@@ -41,8 +41,10 @@
  * - Exist(tag) - Checks if a GUI with the specified tag exists and returns the unique ID (HWND) of the first matching GUI.
  * - SetDefaultTheme(theme) - Set a different theme as the default.
  * - Sound(sound) - Plays a sound.
- ********************************************************************************************/
-Class Notify {
+ */
+#Requires AutoHotkey v2.0
+
+ Class Notify {
 
 /********************************************************************************************
  * @method Show(title, msg, image, sound, callback, options)

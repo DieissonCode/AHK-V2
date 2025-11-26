@@ -341,8 +341,7 @@ OrderCam(layout_cam) {
 
 ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	Global MyGui
-	_new_layout_day_guids := []
-	_new_layout_night_guids := []
+	_updated_layout_guids := []
 	_monitores_from := dguard._getWorkstationInfo(Map('server', _from)).data["monitor"]
 	_monitores := dguard._getWorkstationInfo(Map('server', _to)).data["monitor"]
 	
@@ -350,7 +349,7 @@ ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	loop _from_layouts.Count {
 		layoutPeriod := MyGui['_day'].Value ? "_Layout" : "_NLayout"
 		_new_layout := dguardLayouts.Create(Map('server', _to, 'name',  'Coluna_' GetColunaFromIp(_from, colunasMap) layoutPeriod '_' A_Index))
-		_new_layout_day_guids.Push(_new_layout)
+		_updated_layout_guids.Push(_new_layout)
 		_layout_cam := dguardLayouts.getCameras(Map('server', _from, 'layoutGuid', _from_layouts[layoutPeriod A_Index].guid))
 		InsertCam(_to, OrderCam(_layout_cam), _new_layout)
 	}
@@ -359,9 +358,7 @@ ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	loop _from_layouts.Count {
 				DguardLayouts.show(Map(	'server', _to
 									,	'monitorGuid', _monitores[A_Index]
-									,	'layoutGuid', A_Hour >= 7 && A_Hour <= 19
-										? _new_layout_day_guids[A_Index]
-										: _new_layout_night_guids[A_Index]))
+									,	'layoutGuid', _updated_layout_guids[A_Index]))
 	}
 
 }

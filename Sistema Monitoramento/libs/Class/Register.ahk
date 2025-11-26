@@ -1,4 +1,5 @@
-﻿If	IsSet(z_inc_reg)
+﻿#Requires AutoHotkey v2.0
+If	IsSet(z_inc_reg)
 	Return
 Global	z_inc_reg := 1
 reg := Register()

@@ -1,4 +1,5 @@
-﻿; #Warn All, Off
+﻿#Warn All, Off
+#Requires AutoHotkey v2.0
 Try if	z_functions
 	Return
 
@@ -6,8 +7,8 @@ z_functions	:= 1
 Global copyData := Map()
 copyData.Default := 'EMPTY'
 
-#Include ..\libs\Class\base64.ahk2
-#Include ..\libs\Class\Email.ahk2
+#Include ..\libs\Class\base64.ahk
+#Include ..\libs\Class\Email.ahk
 
 Accent_Off(text) {
 	text	:= RegExReplace(text, '[áàâäã]','a')

@@ -7,7 +7,8 @@
 ;@Ahk2Exe-SetMainIcon C:\AHK\icones\showcam.ico
 
 #Requires AutoHotkey v2.0
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\new_dguard.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\new_dguard.ahk
+
 
 showCams(A_Args[1])
 

@@ -1,4 +1,5 @@
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Socket.ahk2
+#Requires AutoHotkey v2.0
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Socket.ahk
 class Viaweb extends winsock	{
 
 	static Blocking := False

@@ -1,4 +1,5 @@
-﻿QPX(T?, N?, M?, D?) ; v0.12 by SKAN for ah2 on CT91/D79D @ autohotkey.com/r?t=133066
+﻿#Requires AutoHotkey v2.0
+QPX(T?, N?, M?, D?) ; v0.12 by SKAN for ah2 on CT91/D79D @ autohotkey.com/r?t=133066
 {
     Static  F,  Q := DllCall("Kernel32\QueryPerformanceFrequency", "int64p",&F := 0)
     Return (  DllCall("Kernel32\QueryPerformanceCounter", "int64p",&Q)

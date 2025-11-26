@@ -1,16 +1,14 @@
-﻿#Requires AutoHotkey v2.0
-
-;Save_To_Sql=1
+﻿;Save_To_Sql=1
 ;Keep_Versions=3
 ;@Ahk2Exe-Let U_FileVersion = 0.0.2.1
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Atualização de Informações das Câmeras
 ;@Ahk2Exe-SetDescription %U_C%
 ;@Ahk2Exe-SetMainIcon C:\AHK\icones\model.ico
-
+#Requires AutoHotkey v2.0
 ;	Includes
-	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
-	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk2
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk
+	#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk
 	sql_version(1)
 s := '
 	(

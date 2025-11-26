@@ -1,3 +1,4 @@
+#Requires AutoHotkey v2.0
 If	IsSet(z_inc_Dguard)
 	Return
 
@@ -6,9 +7,9 @@ Global	z_inc_Dguard := 1,
 
 Dguard.cameras('localhost')
 
-#Include ..\class\Json.ahk2
-#Include ..\class\Email.ahk2
-#Include ..\functions.ahk2
+#Include ..\class\Json.ahk
+#Include ..\class\Email.ahk
+#Include ..\functions.ahk
 
 Class	Dguard	{
 

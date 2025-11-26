@@ -12,7 +12,7 @@
 if	!A_IsCompiled
 	TraySetIcon("C:\AHK\icones\autocorretor.ico")
 ;{	Includes
-	#Include ..\libs\functions.ahk2
+	#Include ..\libs\functions.ahk
 ;}
 
 ;{	Configurações
