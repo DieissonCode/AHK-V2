@@ -233,14 +233,9 @@ Execute() {
 OnCancel() {
 	try {
 		DisableButtons()
-
-		; TODO: Implementar lógica de undo
-
 		EnableButtons()
 		ResetRadios()
 		CheckColumns()
-
-		;MsgBox("✓ Layouts resetados com sucesso!")
 	}
 	catch as err {
 		MsgBox("❌ Erro: " err.What)
@@ -342,7 +337,7 @@ OrderCam(layout_cam) {
 ProcessLayouts(_from, _to, _from_layouts, colunasMap) {
 	Global MyGui
 	_updated_layout_guids := []
-	_monitores_from := dguard._getWorkstationInfo(Map('server', _from)).data["monitor"]
+	;_monitores_from := dguard._getWorkstationInfo(Map('server', _from)).data["monitor"]	;	não tem utilidade por hora
 	_monitores := dguard._getWorkstationInfo(Map('server', _to)).data["monitor"]
 	
 	;	Criar novos layouts no servidor de destino e pegar informações das câmeras
