@@ -7,7 +7,7 @@
 ;@Ahk2Exe-SetMainIcon C:\AHK\icones\switch_collumn.ico
 
 #Requires AutoHotkey v2.0
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\new_dguard.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\new_dguard.ahk
 
 #SingleInstance Force
 Persistent

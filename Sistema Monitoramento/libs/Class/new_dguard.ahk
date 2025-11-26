@@ -3,9 +3,9 @@
 if (IsSet(__isInCluded))
 	return
 
-#Include ..\class\Json.ahk2
-#Include ..\class\Email.ahk2
-#Include ..\functions.ahk2
+#Include ..\class\Json.ahk
+#Include ..\class\Email.ahk
+#Include ..\functions.ahk
 
 Global subOutputDebug := false
 Global mainOutputDebug := true
