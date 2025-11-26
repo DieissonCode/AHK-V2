@@ -238,7 +238,7 @@ OnCancel() {
 		CheckColumns()
 	}
 	catch as err {
-		MsgBox("❌ Erro: " err.What)
+		MsgBox( 'OnCancel()`n`n' "❌ Erro: " err.What)
 		EnableButtons()
 	}
 }
