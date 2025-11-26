@@ -87,7 +87,7 @@ MyGui.BackColor := "0x121212"
 
 ; PERÍODO - Título
 	MyGui.SetFont("s12 Bold c" cor_titulo)
-	ctl := MyGui.Add("Text", "w200 h30 x20 y175 Center", "⏰ PERÍODO")
+	ctl := MyGui.Add("Text", "w320 h30 x20 y175 Center", "⏰ PERÍODO")
 	ctl.Opt("+BackgroundTrans")
 	MyGui.SetFont("s10 c" cor_texto)
 
