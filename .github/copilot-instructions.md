@@ -1,35 +1,40 @@
-﻿# GitHub Copilot Instructions
+﻿# Instruções do GitHub Copilot
 
-## Commit Message Guidelines
+## Idioma
 
--   Write short and clear commit messages.
--   Start with an imperative verb (e.g., "Add", "Fix", "Update").
--   Insert a blank line between subject and body.
--   Explain what and why, never how.
--   Reference issue numbers when relevant (e.g., "Fixes #123").
+-   Escreva todas as mensagens de commit em português brasileiro (pt-BR) em linguagem técnica clara e objetiva. 
+-   Mantenha apenas os prefixos (feat, fix, refactor, perf, chore) em inglês.
 
-## AHK-Specific Rules
+## Diretrizes para Mensagens de Commit
 
--   Extract the file version from the third line of the file.
--   The version appears after " = " in lines like:
-        ;@Ahk2Exe-Let U_FileVersion = 0.0.2.4
--   Always include the detected version in the commit body as:
-        "File version: X.X.X.X"
+-   Escreva mensagens de commit curtas e claras. 
+-   Comece com um verbo no imperativo (ex.: "Add", "Fix", "Update"). 
+-   Insira uma linha em branco entre o assunto e o corpo. 
+-   Explique o quê e por quê, nunca como.
+-   Referencie números de issues quando relevante (ex.: "Fixes #123"). 
 
--   Highlight changes in hotkeys, timers, handlers, conditions, and flows.
--   Mention impacts on other modules or scripts.
--   Distinguish refactor vs fix.
--   Note performance-relevant updates.
--   Warn when functions, classes, prototypes, or globals are renamed/moved.
+## Regras Específicas para AHK
 
-## Prefixes
+-   Extraia a versão do arquivo da terceira linha do arquivo. 
+-   A versão aparece após " = " em linhas como:
+        ;@Ahk2Exe-Let U_FileVersion = 0.0.2. 4
+-   Sempre inclua a versão detectada no corpo do commit como:
+        "File version: X.X.X. X"
 
--   feat: new functionality
--   fix: bug fix
--   refactor: internal changes
--   perf: performance improvement
--   chore: small cleanup
+-   Destaque alterações em hotkeys, timers, handlers, condições e fluxos.
+-   Mencione impactos em outros módulos ou scripts.
+-   Diferencie refactor de fix. 
+-   Anote atualizações relevantes para performance. 
+-   Avise quando funções, classes, prototypes ou globais forem renomeadas/movidas. 
 
-## Avoid
+## Prefixos
 
--   Vague messages like "adjustments", "test", "update".
+-   feat: nova funcionalidade
+-   fix: correção de bug
+-   refactor: alterações internas
+-   perf: melhoria de performance
+-   chore: pequena limpeza/manutenção
+
+## Evite
+
+-   Mensagens vagas como "ajustes", "teste", "atualização".
