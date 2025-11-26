@@ -1,6 +1,6 @@
 ﻿;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.2.4
+;@Ahk2Exe-Let U_FileVersion = 0.0.2.5
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Alternador de Colunas
 ;@Ahk2Exe-SetDescription %U_C%
