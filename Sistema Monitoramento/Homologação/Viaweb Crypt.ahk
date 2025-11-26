@@ -1,6 +1,6 @@
 #Warn All,	Off
 #Requires AutoHotkey v2.0
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\class\socket.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\class\socket.ahk
 OutputDebug "Incluido biblioteca`n`tSocket.ahk2"
 Persistent
 key := '94EF1C592113E8D27F5BB4C5D278BF3764292CEA895772198BA9435C8E9B97FD'
