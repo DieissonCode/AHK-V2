@@ -1,19 +1,15 @@
 #Warn		All,	Off
 #Requires	AutoHotkey v2.0
-#Include	..\libs\class\socket.ahk2
-	OutputDebug	"Incluido biblioteca`n`tSocket.ahk2"
+#Include	..\libs\class\socket.ahk
 comando := ""
 z_functions	:= 0
-#Include	..\libs\functions.ahk2
-	OutputDebug	"Incluido biblioteca`n`tFunctions.ahk2"
-#Include	..\libs\Class\Json.ahk2
-	OutputDebug	"Incluido biblioteca`n`tJson.ahk2"
+#Include	..\libs\functions.ahk
+#Include	..\libs\Class\Json.ahk
 ;	Configurações
 	w	:=	405
 ; start_server()
 ;	Operador
 	Switch	SysGetIPAddresses()[1] {
-	
 		Case	"192.9.100.102":
 			operador := 1
 		Case	"192.9.100.106":
@@ -28,29 +24,26 @@ z_functions	:= 0
 			operador := 6
 		Default:
 			operador := 0
-	
 	}
-	OutputDebug	"Definindo operador`n`tOperador: " operador
 
 ;	Interface Principal
-	OutputDebug	"Criando interface"
-	a:=Gui('AlwaysOnTop -DPIScale -Border','KAH')
-	a.Color(a,)
+	a := Gui('AlwaysOnTop -DPIScale -Border','KAH')
+	;a.Color(a,)
 	a.Add('Text', '0x1001	w'  w '		h20		vstatus'												, ''							).OnEvent('Click',	start_socket)
 	a.Add('Text', '0x1001	w'  w '		h20'									a.SetFont('Bold cWhite'), 'Selecione o local'		   )
 	a.Add('Edit', '			w'  w '				vFiltro			Section'		a.SetFont('cBlack')								   ).OnEvent('Change', filtrar)
 	a.Add('Listview','		w'  w '		r20		vUnidade	Grid		-HDR'							,	['Unidade','ID','Operador']	).OnEvent('Click',	verificar_partições)
-	a.Add('Button','	xm	w' (w-5)/2	'		vbt_armar		Section	Disabled'						,	'Armar'						).OnEvent("Click",	armar)
-	a.Add('Button','	yp	w' (w-5)/2	' 		vbt_desarmar			Disabled'						,	'Desarmar'					).OnEvent("Click",	desarmar)
+	a.Add('Button','	xm	w' (w-5)/2	'		vbt_armar		Section			'						,	'Armar'						).OnEvent("Click",	armar)
+	a.Add('Button','	yp	w' (w-5)/2	' 		vbt_desarmar					'						,	'Desarmar'					).OnEvent("Click",	desarmar)
 	a.Add('Button','	xm	w'  w-5		' 										'						,	'Fechar'					).OnEvent("Click",	sair)
-	; a.Add('Button','xs		w100 			vbt_pgm_armar		Disabled','Armar PGM').OnEvent("Click", pgm_armar)
-	; a.Add('Button','	yp	w100 			vbt_pgm_desarmar	Disabled','Desarmar PGM').OnEvent("Click", pgm_desarmar)
+	a.Add('Button','xs		w100 			vbt_pgm_armar		Disabled','Armar PGM').OnEvent("Click", pgm_armar)
+	a.Add('Button','	yp	w100 			vbt_pgm_desarmar	Disabled','Desarmar PGM').OnEvent("Click", pgm_desarmar)
 	a.Show('x0 y0')
 
 ;	Interface da Central	
 	WinGetPos &aX, &aY, &aW, &aH, 'KAH'
 	b := Gui('+Owner')
-	b.Color(b,)
+	;b.Color(b,)
 
 	
 	b.Add('Text', ' vparticao_text Hidden 0x1001 h30 w585' b.SetFont('S12 Bold cWhite'), 'Partições da Central de Alarme' )
@@ -105,8 +98,8 @@ verificar_partições(ctrl,info)	{
 	Global	id		:= a["unidade"].GetText(info, 2)
 		,	linha	:= info
 
-	a["bt_desarmar"].enabled:= 0
-	a["bt_armar"].enabled	:= 0
+	a["bt_desarmar"].enabled:= 1
+	a["bt_armar"].enabled	:= 1
 	OutputDebug	"Verifica partições ID: " id
 
 	z := id '|particoes&'
@@ -118,8 +111,8 @@ verificar_zonas(ctrl,info)	{
 	Global	id		:= a["unidade"].GetText(info, 2)
 		,	linha	:= info
 
-	a["bt_desarmar"].enabled:= 0
-	a["bt_armar"].enabled	:= 0
+	a["bt_desarmar"].enabled:= 1
+	a["bt_armar"].enabled	:= 1
 	OutputDebug	"Verifica zonas ID: " id
 
 	z := id '|zonas&'
@@ -146,7 +139,6 @@ esconde_zonas(zona?)	{
 }
 
 armar(ctrl,info)	{
-
 	a["bt_desarmar"].enabled:= 1
 	a["bt_armar"].enabled	:= 0
 	OutputDebug "Armar Id: " id
@@ -158,9 +150,8 @@ armar(ctrl,info)	{
 }
 
 desarmar(ctrl,info)	{
-
-	a["bt_desarmar"].enabled:= 0
-	a["bt_armar"].enabled	:= 1
+	a["bt_desarmar"].enabled:= 1
+	a["bt_armar"].enabled	:= 0
 	OutputDebug "Desarmar Id: " id
 	
 	z := id '|desarmar'
@@ -232,7 +223,6 @@ start_server()	{
 ;	Funções
 
 	EnviarComando( string ) {
-
 		string := StrReplace(string, "id_da_central", id)
 		strbuf := Buffer(StrLen(string)) ; for UTF-8, take strLen() + 1 as the buffer size
 		StrPut(string, strbuf, "UTF-8")
