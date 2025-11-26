@@ -1,7 +1,7 @@
 ﻿#Requires AutoHotkey v2.0
 
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk2
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk2
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Http.ahk
 call := Http()
 auth := 'http://admin:tq8hSKWzy5A@'
 get := '/cgi-bin/configManager.cgi?action=getConfig&name=StorageGroup'
