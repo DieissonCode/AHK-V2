@@ -144,6 +144,8 @@ armar(ctrl,info)	{
 	OutputDebug "Armar Id: " id
 
 	z := id '|armar'
+	z := '{"oper":[{"acao":"executar","idISEP":"' id '", "comando":[{"cmd":"armar", "password":8790, "particoes":[1]}]}]}'
+
 	comando := EnviarComando( z )
 	verificar_partições(ctrl,linha)
 
