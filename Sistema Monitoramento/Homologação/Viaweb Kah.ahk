@@ -1,27 +1,10 @@
-OutputDebug(A_AhkVersion)
-;Save_To_Sql=1
-;Keep_Versions=3
-;@Ahk2Exe-Let U_FileVersion = 0.1.0.0
-;@Ahk2Exe-SetFileVersion %U_FileVersion%
-;@Ahk2Exe-Let U_C = KAH - Viaweb Client
-;@Ahk2Exe-SetDescription %U_C%
-;@Ahk2Exe-SetMainIcon C:\AHK\icones\pc.ico
-
 #Requires AutoHotkey v2.0
 #Warn All, off
-; Viaweb AES-256-CBC client (AHK v2 puro, compatível com 2.1-alpha.14)
-; - Usa "catch Error as e" conforme solicitado
-; - Não usa GuiCreate / akh_H
-; - Escuta respostas assíncronas com SetTimer e grava em arquivo de log + TrayTip
-; - Hotkeys:
-;     F1 -> Armar partição 1
-;     F2 -> Desarmar partição 1
-;     F3 -> Consultar status partições
-;     F4 -> Consultar status zonas
-;
-; Ajuste os valores abaixo antes de executar.
+
+OutputDebug(A_AhkVersion)
 Persistent
-; ----------------- CONFIGURAÇÃO -----------------
+
+; ===================== CONFIGURAÇÃO =====================
 IP := "10.0.20.43"
 PORTA := 2700
 CHAVE := "94EF1C592113E8D27F5BB4C5D278BF3764292CEA895772198BA9435C8E9B97FD"
@@ -30,9 +13,19 @@ IV := "70FC01AA8FCA3900E384EA28A5B7BCEF"
 ISEP_DEFAULT := "090A"
 SENHA_DEFAULT := "1234"
 
-LOG_FILE := A_ScriptDir . "\viaweb_log.txt"
-POLL_INTERVAL_MS := 200  ; intervalo do timer de polling
-; -------------------------------------------------
+POLL_INTERVAL_MS := 200
+GUI_UPDATE_MS := 500
+
+; ===================== VARIÁVEIS GLOBAIS =====================
+global client
+global particionesStatus := Map()
+global zonasStatus := Map()
+global historicoMensagens := []
+global ultimaAtualizacao := ""
+global statusConexao := "Desconectado"
+global colorConexao := "0xFF0000"
+
+; ===================== CLASSES =====================
 
 class ViawebClient {
 	socket := 0
@@ -57,7 +50,7 @@ class ViawebClient {
 			throw Error("Falha ao criar socket")
 
 		hostent := DllCall("ws2_32\gethostbyname","AStr",this.ip,"Ptr")
-		if (!hostent)
+		if (! hostent)
 			throw Error("Falha ao resolver hostname")
 
 		addrList := NumGet(hostent + (A_PtrSize == 8 ? 24 : 12),"Ptr")
@@ -93,11 +86,10 @@ class ViawebClient {
 		encrypted := this.crypto.Encrypt(jsonStr)
 		result := DllCall("ws2_32\send","Ptr",this.socket,"Ptr",encrypted,"Int",encrypted.Size,"Int",0,"Int")
 		if (result == -1)
-			throw Error("Falha ao enviar: " . DllCall("ws2_32\WSAGetLastError","Int"))
+			throw Error("Falha ao enviar: " .  DllCall("ws2_32\WSAGetLastError","Int"))
 		return result
 	}
 
-	; Poll não-bloqueante: usa select para verificar se há dados e faz recv
 	Poll() {
 		if (!this.connected)
 			return
@@ -119,13 +111,13 @@ class ViawebClient {
 			recvBuf := Buffer(8192)
 			received := DllCall("ws2_32\recv","Ptr",this.socket,"Ptr",recvBuf,"Int",recvBuf.Size,"Int",0,"Int")
 			if (received = 0) {
-				AppendLog("Conexão fechada pelo servidor.")
+				AddHistorico("⚠️ Conexão fechada pelo servidor.", "FF0000")
 				this.Disconnect()
 				return
 			}
 			if (received < 0) {
 				err := DllCall("ws2_32\WSAGetLastError","Int")
-				AppendLog("Erro recv: " . err)
+				AddHistorico("❌ Erro recv: " . err, "FF0000")
 				return
 			}
 
@@ -135,12 +127,11 @@ class ViawebClient {
 
 			try {
 				msg := this.crypto.Decrypt(encrypted)
+				ProcessarResposta(msg)
 			} catch Error as e {
-				AppendLog("Erro descriptografando: " . e.Message)
+				AddHistorico("❌ Erro descriptografando: " . e.Message, "FF0000")
 				return
 			}
-
-			AppendLog("RECEBIDO: " . msg)
 		}
 	}
 
@@ -154,53 +145,38 @@ class ViawebClient {
 		this.Send(identJson)
 	}
 
-	Armar(idISEP,senha,particoes,forcado := 0,zonasInibir := []) {
+	Armar(idISEP,senha,particoes,forcado := 0) {
 		cmdId := this.GetCommandId()
 		if (Type(particoes) != "Array")
 			particoes := [particoes]
-		particoesStr := "[" . this.JoinArray(particoes,",") . "]"
-		cmdObj := '{"oper":[{"id":' . cmdId . ',"acao":"executar","idISEP":"' . idISEP . '","comando":[{"cmd":"armar","password":"' . senha . '","forcado":' . forcado . ',"particoes":' . particoesStr
-		if (Type(zonasInibir) = "Array" && zonasInibir.Length()) {
-			inibirStr := "[" . this.JoinArray(zonasInibir,",") . "]"
-			cmdObj .= ',"inibir":' . inibirStr
-		}
-		cmdObj .= '}]}]}'
+		particoesStr := "[" . JoinArray(particoes,",") . "]"
+		cmdObj := '{"oper":[{"id":' . cmdId . ',"acao":"executar","idISEP":"' . idISEP . '","comando":[{"cmd":"armar","password":"' . senha . '","forcado":' . forcado . ',"particoes":' . particoesStr . '}]}]}'
 		this.Send(cmdObj)
-		AppendLog("Comando enviado: Armar id=" . cmdId)
+		AddHistorico("🔒 Comando: Armar partições " . JoinArray(particoes,","), "00AA00")
 	}
 
 	Desarmar(idISEP,senha,particoes) {
 		cmdId := this.GetCommandId()
 		if (Type(particoes) != "Array")
 			particoes := [particoes]
-		particoesStr := "[" . this.JoinArray(particoes,",") . "]"
-		cmdObj := '{"oper":[{"id":' . cmdId . ',"acao":"executar","idISEP":"' . idISEP . '","comando":[{"cmd":"desarmar","password":"' . senha . '","particoes":' . particoesStr . '}]}]}'
+		particoesStr := "[" . JoinArray(particoes,",") . "]"
+		cmdObj := '{"oper":[{"id":' . cmdId . ',"acao":"executar","idISEP":"' . idISEP .  '","comando":[{"cmd":"desarmar","password":"' . senha .  '","particoes":' . particoesStr . '}]}]}'
 		this.Send(cmdObj)
-		AppendLog("Comando enviado: Desarmar id=" . cmdId)
+		AddHistorico("🔓 Comando: Desarmar partições " . JoinArray(particoes,","), "FFAA00")
 	}
 
 	StatusParticoes(idISEP) {
 		cmdId := this.GetCommandId()
 		cmdObj := '{"oper":[{"id":' . cmdId . ',"acao":"executar","idISEP":"' . idISEP . '","comando":[{"cmd":"particoes"}]}]}'
 		this.Send(cmdObj)
-		AppendLog("Comando enviado: Particoes id=" . cmdId)
+		AddHistorico("📋 Consultando status de partições.. .", "0099FF")
 	}
 
 	StatusZonas(idISEP) {
 		cmdId := this.GetCommandId()
 		cmdObj := '{"oper":[{"id":' . cmdId . ',"acao":"executar","idISEP":"' . idISEP . '","comando":[{"cmd":"zonas"}]}]}'
 		this.Send(cmdObj)
-		AppendLog("Comando enviado: Zonas id=" . cmdId)
-	}
-
-	JoinArray(arr,sep := ",") {
-		out := ""
-		for i,v in arr {
-			if (i > 1)
-				out .= sep
-			out .= v
-		}
-		return out
+		AddHistorico("📋 Consultando status de zonas...", "0099FF")
 	}
 }
 
@@ -323,15 +299,71 @@ class ViawebCrypto {
 	}
 }
 
-; ----------------- LOG E INTERFACE SIMPLES -----------------
-AppendLog(msg) {
-	global LOG_FILE
-	ts := "[" . A_Now . "] "
-	if (IsObject(msg))
-		msg := msg.ToString()
-	FileAppend(ts . msg . "`n", LOG_FILE)
-	; exibir notificação curta
-	TrayTip("Viaweb", msg, 4)
+; ===================== FUNÇÕES AUXILIARES =====================
+
+JoinArray(arr,sep := ",") {
+	out := ""
+	for i,v in arr {
+		if (i > 1)
+			out .= sep
+		out .= v
+	}
+	return out
+}
+
+AddHistorico(msg, color := "FFFFFF") {
+	global historicoMensagens
+	timestamp := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
+	historicoMensagens.InsertAt(1, {msg: msg, color: color, timestamp: timestamp})
+	
+	; Manter apenas as últimas 50 mensagens
+	if (historicoMensagens.Length > 50)
+		historicoMensagens.Pop()
+	
+	AtualizarGUI()
+}
+
+ProcessarResposta(jsonStr) {
+	try {
+		; Tentar parsear como JSON simples
+		if (InStr(jsonStr, "particoes")) {
+			; Resposta de partições
+			pos := 1
+			while (pos := InStr(jsonStr, '"pos":', pos)) {
+				pos += 6
+				posNum := SubStr(jsonStr, pos, 2)
+				posNum := Integer(posNum)
+				
+				armPos := InStr(jsonStr, '"armado":', pos)
+				if (armPos) {
+					armado := SubStr(jsonStr, armPos + 9, 1)
+					disparado := "0"
+					disparadoPos := InStr(jsonStr, '"disparado":', pos)
+					if (disparadoPos)
+						disparado := SubStr(jsonStr, disparadoPos + 12, 1)
+					
+					particionesStatus[posNum] := {armado: armado, disparado: disparado}
+				}
+			}
+			AddHistorico("✅ Partições atualizadas", "00FF00")
+		}
+		else if (InStr(jsonStr, "zonas")) {
+			; Resposta de zonas
+			AddHistorico("✅ Zonas recebidas", "00FF00")
+		}
+		else if (InStr(jsonStr, "resultado")) {
+			; Resposta de comando
+			if (InStr(jsonStr, '"resultado":0'))
+				AddHistorico("✅ Comando executado com sucesso!", "00FF00")
+			else
+				AddHistorico("❌ Erro ao executar comando", "FF0000")
+		}
+		else {
+			AddHistorico("📥 Resposta recebida", "0099FF")
+		}
+	} catch Error as e {
+		AddHistorico("⚠️ Erro ao processar: " . e.Message, "FFAA00")
+	}
 }
 
 PollTimer() {
@@ -340,77 +372,205 @@ PollTimer() {
 		client.Poll()
 }
 
-; hotkeys para ações rápidas usando padrão ISEP e senha
-F1:: {
-	global client,ISEP_DEFAULT,SENHA_DEFAULT
+AtualizarGUI() {
+	global guiHwnd, particionesStatus, historicoMensagens, ultimaAtualizacao, statusConexao, colorConexao, client
+	
+	if (!guiHwnd)
+		return
+	
+	; Atualizar status conexão
+	statusConexao := client && client.connected ?  "🟢 CONECTADO" : "🔴 DESCONECTADO"
+	colorConexao := client && client.connected ? "00FF00" : "FF0000"
+	
+	GuiControl(, "StatusConexao", statusConexao)
+	
+	; Atualizar timestamp
+	ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
+	GuiControl(, "Timestamp", "Última atualização: " . ultimaAtualizacao)
+	
+	; Construir texto de partições
+	particoesText := ""
+	for i in Range(1, 8) {
+		if (particionesStatus.Has(i)) {
+			dados := particionesStatus[i]
+			armado := dados["armado"] = "1" ?  "🔒 ARMADA" : "🔓 DESARMADA"
+			disparado := dados["disparado"] = "1" ? " ⚠️ DISPARADA" : ""
+			particoesText .= "Partição " . i .  ": " . armado . disparado . "`n"
+		} else {
+			particoesText .= "Partição " .  i . ": (aguardando... )`n"
+		}
+	}
+	GuiControl(, "Particoes", particoesText)
+	
+	; Construir histórico
+	historicoText := ""
+	for idx, item in historicoMensagens {
+		historicoText .= item["timestamp"] . " - " . item["msg"] .  "`n"
+	}
+	GuiControl(, "Historico", historicoText)
+}
+
+; ===================== INTERFACE GRÁFICA =====================
+
+CriarGUI() {
+	global guiHwnd, client
+	
+	MyGui := Gui()
+	guiHwnd := MyGui.Hwnd
+	
+	MyGui.Opt("+AlwaysOnTop")
+	MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
+	
+	; ========== CABEÇALHO ==========
+	MyGui.Add("Text",, "╔════════════════════════════════════════════╗")
+	MyGui.Add("Text", "Center w400 h25 cFFFFFF", "🛡️ VIAWEB RECEIVER MONITOR")
+	
+	; ========== STATUS CONEXÃO ==========
+	MyGui.Add("Text", "w400 h1 cAAAAFF", "")
+	MyGui.Add("Text", "w400", "Status da Conexão:")
+	MyGui.Add("Text", "Center w400 h30 cFFFFFF", "🔴 DESCONECTADO")
+	guiCtrlStatusConexao := MyGui.Add("Text", "Center w400 h30 c00FF00 BackgroundTransparent", "🔴 DESCONECTADO")
+	MyGui.Add("Text", "x10 w400", "Endereço: " . IP . ":" .  PORTA)
+	MyGui.Add("Text", "x10 w400", "ISEP: " . ISEP_DEFAULT)
+	guiCtrlTimestamp := MyGui.Add("Text", "x10 w400", "Última atualização: 00:00:00")
+	
+	MyGui.Add("Text", "w400 h1 cAAAAFF", "")
+	
+	; ========== BOTÕES DE CONTROLE ==========
+	MyGui.Add("Text", "w400", "Controle Rápido:")
+	btnCtrlGroup := MyGui.Add("GroupBox", "w400 h80", "Ações")
+	
+	MyGui.Add("Button", "x20 y+5 w90 h30 cFFFFFF", "🔒 Armar").OnEvent("Click", ArmarBtn)
+	MyGui.Add("Button", "x120 y236 w90 h30 cFFFFFF", "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
+	MyGui.Add("Button", "x220 y236 w90 h30 cFFFFFF", "📋 Status").OnEvent("Click", StatusBtn)
+	MyGui.Add("Button", "x320 y236 w90 h30 cFFFFFF", "🔄 Zonas").OnEvent("Click", ZonasBtn)
+	
+	MyGui.Add("Text", "w400 h1 cAAAAFF", "")
+	
+	; ========== STATUS PARTIÇÕES ==========
+	MyGui.Add("Text", "w400", "Status das Partições:")
+	guiCtrlParticoes := MyGui.Add("Edit", "x10 w400 h150 ReadOnly Multi")
+	
+	MyGui.Add("Text", "w400 h1 cAAAAFF", "")
+	
+	; ========== HISTÓRICO ==========
+	MyGui.Add("Text", "w400", "Histórico de Ações (últimas 20):")
+	guiCtrlHistorico := MyGui.Add("Edit", "x10 w400 h200 ReadOnly Multi")
+	
+	; Associar variáveis para atualização
+	MyGui.Add("Text", "Hidden", "")
+	guiCtrlDummyStatus := MyGui.Add("Text", "Hidden", "")
+	
+	ControlSetText(guiCtrlStatusConexao, "🔴 DESCONECTADO")
+	ControlSetText(guiCtrlTimestamp, "Última atualização: 00:00:00")
+	ControlSetText(guiCtrlParticoes, "Aguardando dados... `n`n(Pressione F3 para consultar status)")
+	ControlSetText(guiCtrlHistorico, "Sistema iniciado`nAguardando conexão...")
+	
+	MyGui.Show("w420")
+	
+	return MyGui
+}
+
+ArmarBtn(GuiCtrlObj, Info) {
+	global client, ISEP_DEFAULT, SENHA_DEFAULT
 	if (!client || !client.connected) {
-		AppendLog("Não conectado.")
+		AddHistorico("❌ Não conectado", "FF0000")
 		return
 	}
 	try {
-		client.Armar(ISEP_DEFAULT,SENHA_DEFAULT,[1])
+		client.Armar(ISEP_DEFAULT, SENHA_DEFAULT, [1])
 	} catch Error as e {
-		AppendLog("Erro ao enviar armar: " . e.Message)
+		AddHistorico("❌ Erro: " . e.Message, "FF0000")
 	}
 }
 
-F2:: {
-	global client,ISEP_DEFAULT,SENHA_DEFAULT
+DesarmarBtn(GuiCtrlObj, Info) {
+	global client, ISEP_DEFAULT, SENHA_DEFAULT
 	if (!client || !client.connected) {
-		AppendLog("Não conectado.")
+		AddHistorico("❌ Não conectado", "FF0000")
 		return
 	}
 	try {
-		client.Desarmar(ISEP_DEFAULT,SENHA_DEFAULT,[1])
+		client.Desarmar(ISEP_DEFAULT, SENHA_DEFAULT, [1])
 	} catch Error as e {
-		AppendLog("Erro ao enviar desarmar: " . e.Message)
+		AddHistorico("❌ Erro: " . e.Message, "FF0000")
 	}
 }
 
-F3:: {
-	global client,ISEP_DEFAULT
+StatusBtn(GuiCtrlObj, Info) {
+	global client, ISEP_DEFAULT
 	if (!client || !client.connected) {
-		AppendLog("Não conectado.")
+		AddHistorico("❌ Não conectado", "FF0000")
 		return
 	}
 	try {
 		client.StatusParticoes(ISEP_DEFAULT)
 	} catch Error as e {
-		AppendLog("Erro ao solicitar status particoes: " . e.Message)
+		AddHistorico("❌ Erro: " . e.Message, "FF0000")
 	}
 }
 
-F4:: {
-	global client,ISEP_DEFAULT
+ZonasBtn(GuiCtrlObj, Info) {
+	global client, ISEP_DEFAULT
 	if (!client || !client.connected) {
-		AppendLog("Não conectado.")
+		AddHistorico("❌ Não conectado", "FF0000")
 		return
 	}
 	try {
 		client.StatusZonas(ISEP_DEFAULT)
 	} catch Error as e {
-		AppendLog("Erro ao solicitar status zonas: " . e.Message)
+		AddHistorico("❌ Erro: " . e.Message, "FF0000")
 	}
 }
 
-; ----------------- INICIALIZAÇÃO E START -----------------
+; ===================== INICIALIZAÇÃO ======================
+
 try {
-	client := ViawebClient(IP,PORTA,CHAVE,IV)
+	CriarGUI()
+	AddHistorico("⏳ Conectando ao VIAWEB Receiver.. .", "FFAA00")
+	
+	client := ViawebClient(IP, PORTA, CHAVE, IV)
 	client.Connect()
-	AppendLog("Conectado ao VIAWEB Receiver em " . IP . ":" . PORTA)
-	client.Identificar("AHK Monitor")
-	SetTimer(PollTimer,POLL_INTERVAL_MS)
+	
+	AddHistorico("✅ Conectado em " . IP . ":" . PORTA, "00FF00")
+	
+	client.Identificar("AHK Monitor GUI")
+	AddHistorico("🔐 Identificação enviada", "0099FF")
+	
+	SetTimer(PollTimer, POLL_INTERVAL_MS)
+	SetTimer(AtualizarGUI, GUI_UPDATE_MS)
+	
 } catch Error as e {
-	AppendLog("Erro inicial: " . e.Message)
+	AddHistorico("❌ Erro na inicialização: " .  e.Message, "FF0000")
+	MsgBox("Erro: " . e.Message, "VIAWEB Monitor", "Icon!")
 }
 
-OnExit(Exit(Shutdown,0))
-Return
+; ===================== HOTKEYS ======================
 
-Exit(*) {
+F3:: {
+	StatusBtn(0, 0)
+}
+
+F4:: {
+	ZonasBtn(0, 0)
+}
+
+F1:: {
+	ArmarBtn(0, 0)
+}
+
+F2:: {
+	DesarmarBtn(0, 0)
+}
+
+; ===================== EXIT ======================
+
+Shutdown(ExitReason, ExitCode) {
 	global client
 	SetTimer(PollTimer, 0)
-	if client
+	SetTimer(AtualizarGUI, 0)
+	if client && client.connected
 		client.Disconnect()
-	ExitApp()
 }
+
+OnExit(Shutdown)

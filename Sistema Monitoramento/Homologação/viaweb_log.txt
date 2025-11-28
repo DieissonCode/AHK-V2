@@ -5,3 +5,9 @@
 [20251128074853] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
 [20251128075346] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
 [20251128075424] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128082445] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128082455] Comando enviado: Particoes id=1
+[20251128082502] Comando enviado: Zonas id=2
+[20251128082826] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128082828] Comando enviado: Particoes id=1
+[20251128082842] Comando enviado: Zonas id=2
