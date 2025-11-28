@@ -11,7 +11,7 @@
 		"useDebugDirective": true,
 		"usePerfTips": true
 	},
-	"AutoHotkey2.InterpreterPath": "C:\\Program Files\\Autohotkey\\v2\\AutoHotkey64.exe",
+	"AutoHotkey2.InterpreterPath": "C:\\Program Files\\Autohotkey\\v2.0.19\\AutoHotkey64.exe",
 	"AutoHotkey2.SymbolFoldingFromOpenBrace": false,
 	"AutoHotkey2.Warn.VarUnset": true
 

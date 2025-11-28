@@ -1,4 +1,14 @@
+OutputDebug(A_AhkVersion)
+;Save_To_Sql=1
+;Keep_Versions=3
+;@Ahk2Exe-Let U_FileVersion = 0.1.0.0
+;@Ahk2Exe-SetFileVersion %U_FileVersion%
+;@Ahk2Exe-Let U_C = KAH - Viaweb Client
+;@Ahk2Exe-SetDescription %U_C%
+;@Ahk2Exe-SetMainIcon C:\AHK\icones\pc.ico
+
 #Requires AutoHotkey v2.0
+#Warn All, off
 ; Viaweb AES-256-CBC client (AHK v2 puro, compatível com 2.1-alpha.14)
 ; - Usa "catch Error as e" conforme solicitado
 ; - Não usa GuiCreate / akh_H

@@ -1,2 +1,7 @@
 
 [20251128074430] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128074840] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128074840] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128074853] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128075346] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
+[20251128075424] Conectado ao VIAWEB Receiver em 10.0.20.43:2700
