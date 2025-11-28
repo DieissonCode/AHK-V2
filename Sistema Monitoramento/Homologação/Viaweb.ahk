@@ -1,3 +1,4 @@
+MsgBox(A_AhkVersion)
 #Warn		All,	Off
 #Requires	AutoHotkey v2.0
 #Include	..\libs\class\socket.ahk
