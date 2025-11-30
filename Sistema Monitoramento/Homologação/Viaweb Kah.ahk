@@ -402,7 +402,7 @@ Persistent
 						OutputDebug(A_Now "`tOper " A_Index ": " operIndex " = " respObj['oper'][A_Index][operIndex])
 					}
 			}
-			MsgBox
+
 			if(item.Has("resposta")) {	;	OK
 				resposta := item['resposta']
 				if(resposta.HasProp('Capacity'))
@@ -584,7 +584,7 @@ Persistent
 		MsgBox("Erro: " e.Message, "VIAWEB Monitor", "Icon!")
 	}
 
-; ===================== HOTKEYS ======================
+; ===================== HOTKEYS =====================
 
 	F3:: {
 		StatusBtn(0, 0)
