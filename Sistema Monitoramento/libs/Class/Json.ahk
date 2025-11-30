@@ -5,10 +5,13 @@
  * @date 2024/02/24
  * @version 1.0.7
  */
+if (IsSet(__isInCluded))
+	return
 #Requires AutoHotkey v2.0
 
 class JSON {
 	static null := ComValue(1, 0), true := ComValue(0xB, 1), false := ComValue(0xB, 0)
+	static __isInCluded := A_ScriptName
 
 	/**
 	 * Converts a AutoHotkey Object Notation JSON string into an object.
