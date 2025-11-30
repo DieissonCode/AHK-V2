@@ -1,6 +1,7 @@
 #Requires AutoHotkey v2.0
 #Warn All, off
-
+#SingleInstance Force
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
 OutputDebug(A_AhkVersion)
 Persistent
 
@@ -13,7 +14,7 @@ IV := "70FC01AA8FCA3900E384EA28A5B7BCEF"
 ISEP_DEFAULT := "0002"
 SENHA_DEFAULT := "8790"
 
-POLL_INTERVAL_MS := 200
+POLL_INTERVAL_MS := 1000
 GUI_UPDATE_MS := 500
 
 ; ===================== VARIÁVEIS GLOBAIS =====================
@@ -38,6 +39,7 @@ class ViawebClient {
 	connected := false
 	recvBuffer := Buffer(65536)
 	commandId := 0
+	hwnd := 0
 
 	__New(ip, port, hexKey, hexIV) {
 		this.ip := ip
@@ -51,14 +53,14 @@ class ViawebClient {
 			throw Error("WSAStartup falhou")
 
 		this.socket := DllCall("ws2_32\socket", "Int", 2, "Int", 1, "Int", 6, "Ptr")
-		if (this.socket == -1)
+		if (this.socket = -1)
 			throw Error("Falha ao criar socket")
 
 		hostent := DllCall("ws2_32\gethostbyname", "AStr", this.ip, "Ptr")
 		if (! hostent)
 			throw Error("Falha ao resolver hostname")
 
-		addrList := NumGet(hostent + (A_PtrSize == 8 ? 24 : 12), "Ptr")
+		addrList := NumGet(hostent + (A_PtrSize = 8 ? 24 : 12), "Ptr")
 		addr := NumGet(addrList, "Ptr")
 		ipAddr := NumGet(addr, "UInt")
 
@@ -68,10 +70,11 @@ class ViawebClient {
 		NumPut("UInt", ipAddr, sockAddr, 4)
 
 		result := DllCall("ws2_32\connect", "Ptr", this.socket, "Ptr", sockAddr, "Int", 16, "Int")
-		if (result == -1)
+		if (result = -1)
 			throw Error("Falha ao conectar: " DllCall("ws2_32\WSAGetLastError", "Int"))
 
 		this.connected := true
+		FileAppend("[DEBUG] Socket: " this.socket " conectado`n", A_ScriptDir "\debug.log")
 		return true
 	}
 
@@ -90,53 +93,50 @@ class ViawebClient {
 
 		encrypted := this.crypto.Encrypt(jsonStr)
 		result := DllCall("ws2_32\send", "Ptr", this.socket, "Ptr", encrypted, "Int", encrypted.Size, "Int", 0, "Int")
-		if (result == -1)
-			throw Error("Falha ao enviar: "  DllCall("ws2_32\WSAGetLastError", "Int"))
+		if (result = -1)
+			throw Error("Falha ao enviar: " DllCall("ws2_32\WSAGetLastError", "Int"))
 		return result
 	}
 
 	Poll() {
+		OutputDebug(A_LineNumber "`tPoll Start")
 		if (!this.connected)
 			return
-
-		fdsetSize := 4 + (64 * A_PtrSize)
-		fdset := Buffer(fdsetSize, 0)
-		NumPut("UInt", 1, fdset, 0)
-		if (A_PtrSize = 8)
-			NumPut("UInt64", this.socket, fdset, 4)
-		else
-			NumPut("UInt", this.socket, fdset, 4)
-
-		tv := Buffer(8, 0)
-		NumPut("UInt", 0, tv, 0)
-		NumPut("UInt", 0, tv, 4)
-
-		sel := DllCall("ws2_32\select", "Int", 0, "Ptr", fdset, "Ptr", 0, "Ptr", 0, "Ptr", tv, "Int")
-		if (sel > 0) {
-			recvBuf := Buffer(8192)
-			received := DllCall("ws2_32\recv", "Ptr", this.socket, "Ptr", recvBuf, "Int", recvBuf.Size, "Int", 0, "Int")
-			if (received = 0) {
-				AddHistorico("⚠️ Conexão fechada pelo servidor.", "FF0000")
+		OutputDebug(A_LineNumber "`tPoll Connected")
+		recvBuf := Buffer(8192)
+		OutputDebug(A_LineNumber "`tPoll Before Recv")
+		received := DllCall("ws2_32\recv", "Ptr", this.socket, "Ptr", recvBuf, "Int", 8192, "Int", 0, "Int")
+		OutputDebug(A_LineNumber "`tPoll Received: " received)
+		if (received < 0) {
+			err := DllCall("ws2_32\WSAGetLastError", "Int")
+			FileAppend("[DEBUG] WSA Error: " err "`n", A_ScriptDir "\debug.log")
+			if (err = 10054) {
+				AddHistorico("⚠️ Conexão fechada.", "FF0000")
 				this.Disconnect()
-				return
 			}
-			if (received < 0) {
-				err := DllCall("ws2_32\WSAGetLastError", "Int")
-				AddHistorico("❌ Erro recv: " err, "FF0000")
-				return
-			}
+			return
+		}
+		
+		if (received = 0) {
+			AddHistorico("⚠️ Conexão fechada pelo servidor.", "FF0000")
+			this.Disconnect()
+			return
+		}
 
-			encrypted := Buffer(received)
-			Loop received
-				NumPut("UChar", NumGet(recvBuf, A_Index-1, "UChar"), encrypted, A_Index-1)
+		FileAppend("[DEBUG] Recebidos " received " bytes`n", A_ScriptDir "\debug.log")
 
-			try {
-				msg := this.crypto.Decrypt(encrypted)
-				ProcessarResposta(msg)
-			} catch Error as e {
-				AddHistorico("❌ Erro descriptografando: " e.Message, "FF0000")
-				return
-			}
+		encrypted := Buffer(received)
+		Loop received
+			NumPut("UChar", NumGet(recvBuf, A_Index-1, "UChar"), encrypted, A_Index-1)
+
+		try {
+			message := this.crypto.Decrypt(encrypted)
+			FileAppend("[DEBUG] JSON: " SubStr(message, 1, 100) "`n", A_ScriptDir "\debug.log")
+			ProcessarResposta(message)
+		} catch Error as e {
+			AddHistorico("❌ Erro decrypt: " e.Message, "FF0000")
+			FileAppend("[DEBUG] Erro: " e.Message "`n", A_ScriptDir "\debug.log")
+			msgbox
 		}
 	}
 
@@ -154,10 +154,10 @@ class ViawebClient {
 		cmdId := this.GetCommandId()
 		if (Type(particoes) != "Array")
 			particoes := [particoes]
-		particoesStr := "[" JoinArray(particoes, ",")  "]"
+		particoesStr := "[" JoinArray(particoes, ",") "]"
 		cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
 		this.Send(cmdObj)
-		AddHistorico("🔒 Comando: Armar partições " JoinArray(particoes, ","), "00AA00")
+		AddHistorico("🔒 Armar: " JoinArray(particoes, ","), "00AA00")
 	}
 
 	Desarmar(idISEP, senha, particoes) {
@@ -165,23 +165,23 @@ class ViawebClient {
 		if (Type(particoes) != "Array")
 			particoes := [particoes]
 		particoesStr := "[" JoinArray(particoes, ",") "]"
-		cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP  '","comando":[{"cmd":"desarmar","password":"' senha  '","particoes":' particoesStr '}]}]}'
+		cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
 		this.Send(cmdObj)
-		AddHistorico("🔓 Comando: Desarmar partições " JoinArray(particoes, ","), "FFAA00")
+		AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), "FFAA00")
 	}
 
 	StatusParticoes(idISEP) {
 		cmdId := this.GetCommandId()
 		cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"particoes"}]}]}'
 		this.Send(cmdObj)
-		AddHistorico("📋 Consultando status de partições..  .", "0099FF")
+		AddHistorico("📋 Consultando partições.. .", "0099FF")
 	}
 
 	StatusZonas(idISEP) {
 		cmdId := this.GetCommandId()
 		cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"zonas"}]}]}'
 		this.Send(cmdObj)
-		AddHistorico("📋 Consultando status de zonas.. .", "0099FF")
+		AddHistorico("📋 Consultando zonas...", "0099FF")
 	}
 }
 
@@ -228,7 +228,7 @@ class ViawebCrypto {
 	Encrypt(plainText) {
 		plainBytes := this.StringToBytes(plainText)
 		paddedSize := Ceil(plainBytes.Size / 16) * 16
-		if (paddedSize == 0)
+		if (paddedSize = 0)
 			paddedSize := 16
 
 		paddedData := Buffer(paddedSize, 0)
@@ -266,7 +266,7 @@ class ViawebCrypto {
 
 		result := DllCall("bcrypt\BCryptDecrypt", "Ptr", this.hKey, "Ptr", encryptedBuffer, "UInt", dataSize, "Ptr", 0, "Ptr", ivCopy, "UInt", 16, "Ptr", decrypted, "UInt", dataSize, "UInt*", &bytesWritten := 0, "UInt", 0, "UInt")
 		if (result != 0)
-			throw Error("BCryptDecrypt falhou: "  Format("0x{:08X}", result))
+			throw Error("BCryptDecrypt falhou: " Format("0x{:08X}", result))
 
 		Loop 16
 			NumPut("UChar", NumGet(lastBlock, A_Index-1, "UChar"), this.ivRecv, A_Index-1)
@@ -275,7 +275,7 @@ class ViawebCrypto {
 		Loop decrypted.Size {
 			idx := decrypted.Size - A_Index
 			b := NumGet(decrypted, idx, "UChar")
-			if (b == 0x7D || b == 0x5D) {
+			if (b = 0x7D || b = 0x5D) {
 				endPos := idx + 1
 				break
 			}
@@ -290,7 +290,7 @@ class ViawebCrypto {
 		len := StrLen(hexStr) // 2
 		buf := Buffer(len)
 		Loop len {
-			byte := "0x"  SubStr(hexStr, (A_Index - 1) * 2 + 1, 2)
+			byte := "0x" SubStr(hexStr, (A_Index - 1) * 2 + 1, 2)
 			NumPut("UChar", Integer(byte), buf, A_Index-1)
 		}
 		return buf
@@ -308,18 +308,21 @@ class ViawebCrypto {
 
 JoinArray(arr, sep := ",") {
 	out := ""
-	for i, v in arr {
+	i := 1
+	Loop arr.Length {
 		if (i > 1)
-			out .= sep
-		out .= v
+			out := out sep
+		out := out arr[i]
+		i++
 	}
 	return out
 }
 
-AddHistorico(msg, color := "FFFFFF") {
+AddHistorico(message, color := "FFFFFF") {
+	OutputDebug(A_LineNumber "`tAddHistorico: " message)
 	global historicoMensagens, guiHwnd, client
 	timestamp := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
-	historicoMensagens.InsertAt(1, {msg: msg, color: color, timestamp: timestamp})
+	historicoMensagens.InsertAt(1, {message: message, color: color, timestamp: timestamp})
 	
 	if (historicoMensagens.Length > 50)
 		historicoMensagens.Pop()
@@ -327,51 +330,112 @@ AddHistorico(msg, color := "FFFFFF") {
 	if (guiHwnd && client && IsObject(client)) {
 		AtualizarGUI()
 	}
+	OutputDebug(A_LineNumber "`tHistorico End")
+}
+
+ProcessarParticoes(jsonStr) {
+	OutputDebug(A_LineNumber "`tProcessarParticoes: " jsonStr)
+	global particionesStatus
+	
+	pos := 1
+	i := 1
+	Loop 8 {
+		pos := InStr(jsonStr, '"pos":"', pos)
+		if (pos = 0)
+			break
+		
+		pos += 7
+		posNum := i
+		
+		armPos := InStr(jsonStr, '"armado":"', pos)
+		if (armPos) {
+			armado := SubStr(jsonStr, armPos + 10, 1)
+			disparado := "0"
+			
+			disparadoPos := InStr(jsonStr, '"disparado":"', armPos)
+			if (disparadoPos)
+				disparado := SubStr(jsonStr, disparadoPos + 13, 1)
+			
+			particionesStatus[posNum] := {armado: armado, disparado: disparado}
+			AddHistorico("  Partição " posNum ": " (armado = "1" ? "🔒 ARMADA" : "🔓 DESARMADA"), "0099FF")
+		}
+		i++
+	}
+}
+
+ResponderEvento(id) {
+	global client
+	
+	respJson := '{"resp":[{"id":"' id '"}]}'
+	client.Send(respJson)
+	AddHistorico("📤 Confirmação enviada", "0099FF")
 }
 
 ProcessarResposta(jsonStr) {
-	try {
-		if (InStr(jsonStr, "particoes")) {
-			pos := 1
-			while (pos := InStr(jsonStr, '"pos":', pos)) {
-				pos += 6
-				posNum := SubStr(jsonStr, pos, 2)
-				posNum := Integer(posNum)
-				
-				armPos := InStr(jsonStr, '"armado":', pos)
-				if (armPos) {
-					armado := SubStr(jsonStr, armPos + 9, 1)
-					disparado := "0"
-					disparadoPos := InStr(jsonStr, '"disparado":', pos)
-					if (disparadoPos)
-						disparado := SubStr(jsonStr, disparadoPos + 12, 1)
-					
-					particionesStatus[posNum] := {armado: armado, disparado: disparado}
-				}
-			}
-			AddHistorico("✅ Partições atualizadas", "00FF00")
-		}
-		else if (InStr(jsonStr, "zonas")) {
-			AddHistorico("✅ Zonas recebidas", "00FF00")
-		}
-		else if (InStr(jsonStr, "resultado")) {
-			if (InStr(jsonStr, '"resultado":0'))
-				AddHistorico("✅ Comando executado com sucesso!", "00FF00")
-			else
-				AddHistorico("❌ Erro ao executar comando", "FF0000")
-		}
-		else {
-			AddHistorico("📥 Resposta recebida", "0099FF")
-		}
-	} catch Error as e {
-		AddHistorico("⚠️ Erro ao processar: " e.Message, "FFAA00")
+	; OutputDebug(RegexReplace(RegexReplace(RegexReplace(jsonStr
+	; 	,':\[\{',	'`n[{')
+	; 	,'\[\{',	'[{`t')
+	; 	,',',		',`n`t'))
+	response := json.parse(jsonStr)
+
+		/* response */
+			Try	eventosPendentes:= response['eventosPendentes']
+		/* oper */
+			Try	acao			:= response['oper'][1]['acao']
+			Try	id				:= response['oper'][1]['id']
+			Try	isep			:= response['oper'][1]['isep']
+			Try	mes				:= response['oper'][1]['mes']
+			Try	hora			:= response['oper'][1]['hora']
+			Try	min				:= response['oper'][1]['minuto']
+			Try	eventoInterno	:= response['oper'][1]['eventoInterno']
+			Try	codigoEvento	:= response['oper'][1]['codigoEvento']
+		/* resp */
+			Try	versao			:= response['resp'][1]['versao']
+			Try	versaoProto		:= response['resp'][1]['versaoProto']
+
+	Switch acao {
+		case 'evento':
+			AddHistorico("📥 Evento recebido! Código: " codigoEvento " ISEP: " isep, "00FF00")
+		Default:
+			AddHistorico("ℹ️ Resposta recebida: " acao, "0099FF")
+			MsgBox("Resposta: " jsonStr, "VIAWEB Monitor", "Info")
 	}
+
+		; if (InStr(jsonStr, "oper")) {
+		; 	if (InStr(jsonStr, "evento")) {
+		; 		AddHistorico("📥 Evento recebido!", "00FF00")
+				
+		; 		id := json.parse(jsonStr)
+		; 		codigoEvento := json.parse(jsonStr)
+		; 		isep := json.parse(jsonStr)
+				
+		; 		AddHistorico("🔔 Código: " codigoEvento " ISEP: " isep, "FFAA00")
+				
+		; 		ResponderEvento(id)
+		; 	}
+		; 	else if (InStr(jsonStr, '"cmd":"particoes"')) {
+		; 		AddHistorico("📋 Partições recebidas", "00FF00")
+		; 		ProcessarParticoes(jsonStr)
+		; 	}
+		; 	else if (InStr(jsonStr, '"cmd":"zonas"')) {
+		; 		AddHistorico("📋 Zonas recebidas", "00FF00")
+		; 	}
+		; }
+		
+		; if (InStr(jsonStr, "resposta")) {
+		; 	AddHistorico("✅ Resposta de comando recebida", "00FF00")
+		; }
+		
+	;} catch Error as e {
+	;	AddHistorico("❌ Erro processar: " e.Message, "FF0000")
+	;}
 }
 
 PollTimer() {
 	global client
-	if (client && IsObject(client) && client.connected)
+	if (client && IsObject(client) && client.connected)	{
 		client.Poll()
+	}
 }
 
 AtualizarGUI() {
@@ -400,20 +464,24 @@ AtualizarGUI() {
 	
 	particoesText := ""
 	Loop 8 {
-		if (particionesStatus.Has(A_Index)) {
-			dados := particionesStatus[A_Index]
+		i := A_Index
+		if (particionesStatus.Has(i)) {
+			dados := particionesStatus[i]
 			armado := dados["armado"] = "1" ?  "🔒 ARMADA" : "🔓 DESARMADA"
 			disparado := dados["disparado"] = "1" ? " ⚠️ DISPARADA" : ""
-			particoesText .= "Partição " A_Index ": " armado disparado "`n"
+			particoesText := particoesText "Partição " i ": " armado disparado "`n"
 		} else {
-			particoesText .= "Partição "  A_Index ": (aguardando...  )`n"
+			particoesText := particoesText "Partição " i ": (aguardando... )`n"
 		}
 	}
 	guiCtrlParticoes.Value := particoesText
 	
 	historicoText := ""
-	for idx, item in historicoMensagens {
-		historicoText .= item.timestamp " - " item.msg "`n"
+	i := 1
+	Loop historicoMensagens.Length {
+		item := historicoMensagens[i]
+		historicoText := historicoText item.timestamp " - " item.message "`n"
+		i++
 	}
 	guiCtrlHistorico.Value := historicoText
 }
@@ -426,7 +494,7 @@ CriarGUI() {
 	MyGui := Gui()
 	guiHwnd := MyGui.Hwnd
 	
-	MyGui.Opt("+AlwaysOnTop")
+	;MyGui.Opt("+AlwaysOnTop")
 	MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
 	
 	MyGui.Add("Text",, "╔════════════════════════════════════════════╗")
@@ -435,7 +503,7 @@ CriarGUI() {
 	MyGui.Add("Text", "w400 h1 cAAAAFF", "")
 	MyGui.Add("Text", "w400", "Status da Conexão:")
 	guiCtrlStatusConexao := MyGui.Add("Text", "Center w400 h30 c00FF00 BackgroundTrans", "🔴 DESCONECTADO")
-	MyGui.Add("Text", "x10 w400", "Endereço: " IP ":"  PORTA)
+	MyGui.Add("Text", "x10 w400", "Endereço: " IP ":" PORTA)
 	MyGui.Add("Text", "x10 w400", "ISEP: " ISEP_DEFAULT)
 	guiCtrlTimestamp := MyGui.Add("Text", "x10 w400", "Última atualização: 00:00:00")
 	
@@ -456,12 +524,12 @@ CriarGUI() {
 	
 	MyGui.Add("Text", "w400 h1 cAAAAFF", "")
 	
-	MyGui.Add("Text", "w400", "Histórico de Ações (últimas 20):")
+	MyGui.Add("Text", "w400", "Histórico de Ações:")
 	guiCtrlHistorico := MyGui.Add("Edit", "x10 w400 h200 ReadOnly Multi")
 	
 	guiCtrlStatusConexao.Value := "🔴 DESCONECTADO"
 	guiCtrlTimestamp.Value := "Última atualização: 00:00:00"
-	guiCtrlParticoes.Value := "Aguardando dados...  `n`n(Pressione F3 para consultar status)"
+	guiCtrlParticoes.Value := "Aguardando dados... `n`n(Pressione F3 para consultar status)"
 	guiCtrlHistorico.Value := "Sistema iniciado`nAguardando conexão..."
 	
 	MyGui.Show("w420")
@@ -508,7 +576,7 @@ StatusBtn(GuiCtrlObj, Info) {
 
 ZonasBtn(GuiCtrlObj, Info) {
 	global client, ISEP_DEFAULT
-	if (!client || !IsObject(client) || !client.connected) {
+	if (! client || !IsObject(client) || !client.connected) {
 		AddHistorico("❌ Não conectado", "FF0000")
 		return
 	}
@@ -533,11 +601,11 @@ try {
 	AddHistorico("🔐 Identificação enviada", "0099FF")
 	
 	SetTimer(PollTimer, POLL_INTERVAL_MS)
-	SetTimer(AtualizarGUI, GUI_UPDATE_MS)
+	;SetTimer(AtualizarGUI, GUI_UPDATE_MS)
 	
-;} catch Error as e {
-;	AddHistorico("❌ Erro na inicialização: " e.Message, "FF0000")
-;	MsgBox("Erro: " e.Message, "VIAWEB Monitor", "Icon!")
+} catch Error as e {
+	AddHistorico("❌ Erro na inicialização: " e.Message, "FF0000")
+	MsgBox("Erro: " e.Message, "VIAWEB Monitor", "Icon!")
 }
 
 ; ===================== HOTKEYS ======================
@@ -564,7 +632,7 @@ Shutdown(ExitReason, ExitCode) {
 	global client
 	SetTimer(PollTimer, 0)
 	SetTimer(AtualizarGUI, 0)
-	if (client && IsObject(client) && client.connected)
+	if (IsSet(client) && IsObject(client) && client.connected)
 		client.Disconnect()
 }
 
