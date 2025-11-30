@@ -519,12 +519,12 @@ StrRep( haystack, needles* )	{
 
 	Loop needles.Length	{
 		Switch	{
-			Case InStr( needles[A_Index] ?? "Undefined", separator ):
+			Case InStr( (needles[A_Index] ? needles[A_Index] :  "Undefined"), separator ):
 				SearchText	:= SubStr( needles[A_Index], 1, InStr( needles[A_Index], separator )-1 )	
 				ReplaceText	:= SubStr( needles[A_Index], InStr( needles[A_Index], separator )+1 )
 				haystack	:= StrReplace( haystack, SearchText, ReplaceText )
 			Default:
-				SearchText	:=	needles[A_Index] ?? "Undefined"
+				SearchText	:=	(needles[A_Index] ? needles[A_Index] :  "Undefined")
 				ReplaceText	:=	''
 				haystack	:= StrReplace( haystack, SearchText, ReplaceText )
 		}
