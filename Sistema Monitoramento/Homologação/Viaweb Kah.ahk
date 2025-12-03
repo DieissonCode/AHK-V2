@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.3.0
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.0
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -26,19 +26,28 @@ Persistent
 
 ; ===================== CONSTANTES DE CORES =====================
 	CORES := {
-		ARMADA:			"00AA00",
-		DESARMADA:		"FFAA00",
-		DISPARADA:		"FF0000",
-		CONECTADO:		"00FF00",
-		DESCONECTADO:	"FF0000",
-		INFO:			"0099FF",
-		SUCESSO:		"00AA00",
-		ERRO:			"FF0000",
-		TEXTO_ESCURO:	"000000",
-		TEXTO_CLARO:	"FFFFFF",
-		FUNDO_NEUTRAL:	"6e6d6d",
-		FUNDO_INTERFACE:"b1b1b1",
-		BORDER_INFO:	"AAAAFF"
+		ARMADA:				"00AA00",
+		DESARMADA:			"FFAA00",
+		DISPARADA:			"FF0000",
+		CONECTADO:			"00FF00",
+		DESCONECTADO:		"FF0000",
+		INFO:				"0099FF",
+		SUCESSO:			"00AA00",
+		ERRO:				"FF0000",
+		TEXTO_GRUPO:		"001f4e",
+		TEXTO_ESCURO:		"000000",
+		TEXTO_CLARO:		"FFFFFF",
+		FUNDO_NEUTRAL:		"6e6d6d",
+		FUNDO_INTERFACE:	"b1b1b1",
+		BORDER_INFO:		"000000",
+		; Cores dos sensores
+		SENSOR_DISPARADO:	"FF0000",
+		SENSOR_ABERTO:		"FFAA00",
+		SENSOR_TAMPER:		"9932CC",
+		SENSOR_TEMPORIZADO:	"FF8C00",
+		SENSOR_INIBIDO:		"87CEEB",
+		SENSOR_BATLOW:		"FF69B4",
+		SENSOR_OK:			"00AA00"
 	}
 
 ; ===================== VARIÁVEIS GLOBAIS =====================
@@ -56,6 +65,7 @@ Persistent
 	global guiCtrlTimestamp := 0
 	global guiCtrlParticoes := []
 	global guiCtrlParticoesText := 0
+	global guiCtrlSensores := []
 	global guiCtrlHistorico := 0
 
 ; ===================== CLASSES =====================
@@ -376,13 +386,13 @@ Persistent
 
 	ProcessaZonas(resposta) {
 		Global zonasStatus
-		aberta := resposta['aberta']
-		batlow := resposta['batlow']
-		disparada := resposta['disparada']
-		inibida := resposta['inibida']
-		pos := resposta['pos']
-		tamper := resposta['tamper']
-		temporizando := resposta['temporizando']
+		aberta		:= resposta['aberta']
+		batlow		:= resposta['batlow']
+		disparada	:= resposta['disparada']
+		inibida		:= resposta['inibida']
+		pos			:= resposta['pos']
+		tamper		:= resposta['tamper']
+		temporizando:= resposta['temporizando']
 		zonasStatus[pos] := Map('aberta', aberta, 'batlow', batlow, 'disparada', disparada, 'inibida', inibida, 'tamper', tamper, 'temporizando', temporizando)
 		AddHistorico("✅ Status do sensor " pos " atualizado`r`n`tAberto: " aberta " | Disparado: " disparada " | Inibida: " inibida " | Tamper: " tamper " | Temporizando: " temporizando, CORES.SUCESSO)
 	}
@@ -456,6 +466,35 @@ Persistent
 		}
 	}
 
+	ObterStatusSensor(numSensor) {
+		global zonasStatus, CORES
+		
+		if (! zonasStatus.Has(numSensor)) {
+			return {
+				texto: "Aguardando...",
+				cor: CORES.FUNDO_NEUTRAL
+			}
+		}
+
+		dados := zonasStatus[numSensor]
+		
+		if (dados["disparada"] = "1") {
+			return {texto: "Disparado", cor: CORES.SENSOR_DISPARADO}
+		} else if (dados["aberta"] = "1") {
+			return {texto: "Aberto", cor: CORES.SENSOR_ABERTO}
+		} else if (dados["tamper"] = "1") {
+			return {texto: "Tamper", cor: CORES.SENSOR_TAMPER}
+		} else if (dados["temporizando"] = "1") {
+			return {texto: "Temporizado", cor: CORES.SENSOR_TEMPORIZADO}
+		} else if (dados["inibida"] = "1") {
+			return {texto: "Inibido", cor: CORES.SENSOR_INIBIDO}
+		} else if (dados["batlow"] = "1") {
+			return {texto: "Bateria Baixa", cor: CORES.SENSOR_BATLOW}
+		} else {
+			return {texto: "OK", cor: CORES.SENSOR_OK}
+		}
+	}
+
 	ObterStatusParticao(numParticao) {
 		global particionesStatus
 		
@@ -503,54 +542,73 @@ Persistent
 
 	AtualizarGUI() {
 		global guiHwnd, particionesStatus, historicoMensagens, ultimaAtualizacao, statusConexao, colorConexao, client
-		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico
-		
-		if (!guiHwnd)
-			return
-		
-		if (! client || !IsObject(client)) {
-			statusConexao := "🔴 DESCONECTADO"
-			colorConexao := CORES.DESCONECTADO
+		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico, guiCtrlSensores
+
+		; Verificar se a GUI está criada
+			if (!guiHwnd)
+				return
+
+		; Verificar conexão
+			if (!client || !IsObject(client)) {
+				statusConexao := "🔴 DESCONECTADO"
+				colorConexao := CORES.DESCONECTADO
+				try {
+					guiCtrlStatusConexao.Text := statusConexao
+				}
+				return
+			}
+
+		; Atualizar status de conexão
+			statusConexao := client.connected ? "🟢 CONECTADO" : "🔴 DESCONECTADO"
+			colorConexao := client.connected ? CORES.CONECTADO : CORES.DESCONECTADO
 			try {
 				guiCtrlStatusConexao.Text := statusConexao
 			}
-			return
-		}
 		
-		statusConexao := client.connected ? "🟢 CONECTADO" : "🔴 DESCONECTADO"
-		colorConexao := client.connected ? CORES.CONECTADO : CORES.DESCONECTADO
-		
-		try {
-			guiCtrlStatusConexao.Text := statusConexao
-		}
-		
-		ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
-		try {
-			guiCtrlTimestamp.Text := "Última atualização: " ultimaAtualizacao
-		}
+		; Atualizar timestamp
+			ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
+			try {
+				guiCtrlTimestamp.Text := "Última atualização:`t" ultimaAtualizacao
+			}
 		
 		; Atualizar cada partição individualmente com cor
-		Loop 8 {
-			status := ObterStatusParticao(A_Index)
-			guiCtrlParticoes[A_Index].Text := "Partição " A_Index ": " status.texto
-			guiCtrlParticoes[A_Index].Opt("+Background" status.cor)
-		}
+			Loop 8 {
+				status := ObterStatusParticao(A_Index)
+				guiCtrlParticoes[A_Index].Opt("-Redraw")
+				guiCtrlParticoes[A_Index].Text := "Partição " A_Index ": " status.texto
+				guiCtrlParticoes[A_Index].Opt("+Background" status.cor)
+			}
+		
+		; Atualizar cada sensor individualmente com cor
+			Loop 32 {
+				status := ObterStatusSensor(A_Index)
+				guiCtrlSensores[A_Index].Opt("-Redraw")
+				guiCtrlSensores[A_Index].Text := A_Index ": " status.texto
+				guiCtrlSensores[A_Index].Opt("+Background" status.cor)
+			}
 		
 		; Atualizar histórico
-		historicoText := ""
-		Loop historicoMensagens.Length {
-			item := historicoMensagens[A_Index]
-			historicoText := historicoText item.timestamp " - " item.message "`r`n"
-		}
-		try {
-			guiCtrlHistorico.Text := historicoText
-		}
+			historicoText := ""
+			Loop historicoMensagens.Length {
+				item := historicoMensagens[A_Index]
+				historicoText := historicoText item.timestamp " - " item.message "`r`n"
+			}
+			try {
+				guiCtrlHistorico.Text := historicoText
+			}
+
+		; Forçar redraw dos controles
+			Loop 32 {
+				if(A_Index < 9)
+					guiCtrlParticoes[A_Index].Opt("+Redraw")
+				guiCtrlSensores[A_Index].Opt("+Redraw")
+			}
 	}
 
 ; ===================== INTERFACE GRÁFICA =====================
 
 	CriarGUI() {
-		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico, CORES
+		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlSensores, guiCtrlHistorico, CORES
 		MyGui := Gui()
 		guiHwnd := MyGui.Hwnd
 
@@ -559,54 +617,73 @@ Persistent
 			MyGui.SetFont("S12")
 		
 		; Header
-			MyGui.Add("Text", "x10 Center w410 h20 cFFFFFF Background" CORES.INFO " Section", "🛡️ VIAWEB MONITOR")
-			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x15 Center w410 h20 cFFFFFF Background" CORES.INFO " Section", "🛡️ VIAWEB MONITOR")
+			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 		
 		; Status de Conexão
 			guiCtrlStatusConexao := MyGui.Add("Text", "Center w410 h20 c" CORES.CONECTADO " Background" CORES.FUNDO_NEUTRAL, "🔴 DESCONECTADO")
 			MyGui.SetFont("S9")
 
 		; Informações de Conexão
-			MyGui.Add("Text", "x10 w410 h20", "Endereço:`t`t" IP ":" PORTA)
-			MyGui.Add("Text", "x10 w410 h20", "ISEP:`t`t`t" ISEP_DEFAULT)
-			guiCtrlTimestamp := MyGui.Add("Text", "x10 w410 h20", "Última atualização:`t00:00:00")
-			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x15 w410", "Endereço:`t`t" IP ":" PORTA)
+			MyGui.Add("Text", "x15 w410 y+0", "ISEP:`t`t`t" ISEP_DEFAULT)
+			guiCtrlTimestamp := MyGui.Add("Text", "x15 w410 y+0", "Última atualização:`t00:00:00")
+			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
 		; Seção de Controles
-			MyGui.Add("Text", "x10 w410 h20 c000000", "🎮 Controles de Central:")
+			btnCtrlGroup := MyGui.Add("GroupBox", "x15 w410 h60 Section c" CORES.TEXTO_GRUPO, "🎮 Controles de Central")
+			MyGui.Add("Button", "x025 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA, "🔒 Armar").OnEvent("Click", ArmarBtn)
+			MyGui.Add("Button", "x125 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA, "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
+			MyGui.Add("Button", "x225 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "📋 Status").OnEvent("Click", StatusBtn)
+			MyGui.Add("Button", "x325 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "🔄 Zonas").OnEvent("Click", ZonasBtn)
 
-			btnCtrlGroup := MyGui.Add("GroupBox", "x10 w410 h55 Section", " Ações ")
-			MyGui.Add("Button", "x020 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA, "🔒 Armar").OnEvent("Click", ArmarBtn)
-			MyGui.Add("Button", "x120 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA, "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
-			MyGui.Add("Button", "x220 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "📋 Status").OnEvent("Click", StatusBtn)
-			MyGui.Add("Button", "x320 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "🔄 Zonas").OnEvent("Click", ZonasBtn)
-
-			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
 		; Seção de Partições com GroupBox
-			MyGui.Add("Text", "x10 w410 h20 c" CORES.TEXTO_ESCURO, "📊 Status das Partições:")
-			MyGui.Add("GroupBox", "x10 y+10 w410 h165", " Partições ")
+			MyGui.Add("GroupBox", "x15 y+10 w410 h165 Section c" CORES.TEXTO_GRUPO, "📊 Status das Partições ")
 
 			Loop 8 {
-				yPos := 340 + ((A_Index - 1) * 16)
 				guiCtrlParticoes.Push("")
 				status := ObterStatusParticao(A_Index)
-				guiCtrlParticoes[A_Index] := MyGui.Add("Text", "x20 y" yPos " w390 h16 c" CORES.TEXTO_CLARO " 0x1000 Background" status.cor, "Partição " A_Index ": " status.texto)
+				guiCtrlParticoes[A_Index] := MyGui.Add("Text", "x20 ys+" (A_Index * 16) " w390 h16 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, "Partição " A_Index ": " status.texto)
 			}
 
-			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
+
+		; Seção de Sensores com GroupBox (4 colunas x 8 linhas = 32 sensores)
+			MyGui.Add("GroupBox", "x15 y+10 w410 h180 Section c" CORES.TEXTO_GRUPO, "📡 Status dos Sensores")
+
+			yBaseSensores := 555
+			Loop 32 {
+				coluna := Mod(A_Index - 1, 4)
+				linha := (A_Index - 1) // 4
+				xPos := 20 + (coluna * 100)
+				status := ObterStatusSensor(A_Index)
+				guiCtrlSensores.Push(MyGui.Add("Text", "x" xPos " ys+" ((linha+1) * 20) " w95 h18 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, A_Index ": " status.texto))
+			}
+
+			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
 		; Seção de Histórico
-			MyGui.Add("Text", "x10 w410 h20 c" CORES.TEXTO_ESCURO, "📜 Histórico de Ações:")
-			guiCtrlHistorico := MyGui.Add("Edit", "x10 w410 h200 ReadOnly Multi Background" CORES.FUNDO_NEUTRAL " c" CORES.TEXTO_ESCURO)
+			MyGui.Add("GroupBox", "x15 w410 h120 c" CORES.TEXTO_GRUPO " Section", "📜 Histórico de Ações:")
+			guiCtrlHistorico := MyGui.Add("Edit", "ys+20 xs+10 w390 h90 ReadOnly Multi Background" CORES.FUNDO_NEUTRAL " c" CORES.TEXTO_ESCURO)
 
 		; Valores iniciais
 			guiCtrlStatusConexao.Value := "🔴 DESCONECTADO"
 			guiCtrlTimestamp.Value := "Última atualização:`t00:00:00"
 			guiCtrlHistorico.Value := "Sistema iniciado`nAguardando conexão..."
 
-			MyGui.Show("x0 y0 ")
+			MyGui.Show("x0 y0")
+			MyGui.OnEvent("Close", GuiClose)
 			MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
+	}
+
+	GuiClose(GuiObj) {
+		global guiHwnd
+		SetTimer(PollTimer, 0)
+		SetTimer(AtualizarGUI, 0)
+		guiHwnd := 0
+		ExitApp()
 	}
 
 	ArmarBtn(GuiCtrlObj, Info) {
@@ -710,5 +787,4 @@ Persistent
 		if (IsSet(client) && IsObject(client) && client.connected)
 			client.Disconnect()
 	}
-
 	OnExit(Shutdown)
