@@ -208,7 +208,7 @@ Persistent
 			cmdId := this.GetCommandId()
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"particoes"}]}]}'
 			this.Send(cmdObj)
-			AddHistorico("📋 Consultando partições... `tid: " cmdId, CORES.INFO)
+			AddHistorico("📋 Consultando partições...`tid: " cmdId, CORES.INFO)
 		}
 
 		StatusZonas(idISEP) {
@@ -503,16 +503,16 @@ Persistent
 
 	AtualizarGUI() {
 		global guiHwnd, particionesStatus, historicoMensagens, ultimaAtualizacao, statusConexao, colorConexao, client
-		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlParticoesText, guiCtrlHistorico
+		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico
 		
 		if (!guiHwnd)
 			return
 		
-		if (!client || !IsObject(client)) {
+		if (! client || !IsObject(client)) {
 			statusConexao := "🔴 DESCONECTADO"
 			colorConexao := CORES.DESCONECTADO
 			try {
-				guiCtrlStatusConexao.text := statusConexao
+				guiCtrlStatusConexao.Text := statusConexao
 			}
 			return
 		}
@@ -521,79 +521,80 @@ Persistent
 		colorConexao := client.connected ? CORES.CONECTADO : CORES.DESCONECTADO
 		
 		try {
-			guiCtrlStatusConexao.text  := statusConexao
+			guiCtrlStatusConexao.Text := statusConexao
 		}
 		
 		ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
 		try {
-			guiCtrlTimestamp.text := "Última atualização: " ultimaAtualizacao
+			guiCtrlTimestamp.Text := "Última atualização: " ultimaAtualizacao
 		}
 		
-		; Atualizar status de cada partição
-		particoesText := ""
+		; Atualizar cada partição individualmente com cor
 		Loop 8 {
-			i := A_Index
-			status := ObterStatusParticao(i)
-			particoesText := particoesText "Partição " i ": " status.texto "`r`n"
-		}
-		try {
-			guiCtrlParticoesText.text := particoesText
+			status := ObterStatusParticao(A_Index)
+			guiCtrlParticoes[A_Index].Text := "Partição " A_Index ": " status.texto
+			guiCtrlParticoes[A_Index].Opt("+Background" status.cor)
 		}
 		
 		; Atualizar histórico
 		historicoText := ""
-		i := 1
 		Loop historicoMensagens.Length {
-			item := historicoMensagens[i]
+			item := historicoMensagens[A_Index]
 			historicoText := historicoText item.timestamp " - " item.message "`r`n"
-			i++
 		}
 		try {
-			guiCtrlHistorico.text := historicoText
+			guiCtrlHistorico.Text := historicoText
 		}
-
 	}
 
 ; ===================== INTERFACE GRÁFICA =====================
 
 	CriarGUI() {
-		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlParticoesText, guiCtrlHistorico, CORES
+		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico, CORES
 		MyGui := Gui()
 		guiHwnd := MyGui.Hwnd
 
 		; Configurar cores padrão
 			MyGui.BackColor := CORES.FUNDO_INTERFACE
-				MyGui.SetFont("S12")
+			MyGui.SetFont("S12")
+		
 		; Header
 			MyGui.Add("Text", "x10 Center w410 h20 cFFFFFF Background" CORES.INFO " Section", "🛡️ VIAWEB MONITOR")
-				MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
 		
 		; Status de Conexão
 			guiCtrlStatusConexao := MyGui.Add("Text", "Center w410 h20 c" CORES.CONECTADO " Background" CORES.FUNDO_NEUTRAL, "🔴 DESCONECTADO")
-				MyGui.SetFont("S9")
+			MyGui.SetFont("S9")
 
 		; Informações de Conexão
 			MyGui.Add("Text", "x10 w410 h20", "Endereço:`t`t" IP ":" PORTA)
 			MyGui.Add("Text", "x10 w410 h20", "ISEP:`t`t`t" ISEP_DEFAULT)
 			guiCtrlTimestamp := MyGui.Add("Text", "x10 w410 h20", "Última atualização:`t00:00:00")
-				MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
 
 		; Seção de Controles
 			MyGui.Add("Text", "x10 w410 h20 c000000", "🎮 Controles de Central:")
 
 			btnCtrlGroup := MyGui.Add("GroupBox", "x10 w410 h55 Section", " Ações ")
-			MyGui.Add("Button", "x020 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA,	"🔒 Armar"		).OnEvent("Click", ArmarBtn)
-			MyGui.Add("Button", "x120 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA,	"🔓 Desarmar"	).OnEvent("Click", DesarmarBtn)
-			MyGui.Add("Button", "x220 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO,		"📋 Status"		).OnEvent("Click", StatusBtn)
-			MyGui.Add("Button", "x320 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO,		"🔄 Zonas"		).OnEvent("Click", ZonasBtn)
+			MyGui.Add("Button", "x020 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA, "🔒 Armar").OnEvent("Click", ArmarBtn)
+			MyGui.Add("Button", "x120 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA, "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
+			MyGui.Add("Button", "x220 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "📋 Status").OnEvent("Click", StatusBtn)
+			MyGui.Add("Button", "x320 ys+15 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "🔄 Zonas").OnEvent("Click", ZonasBtn)
 
-				MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
 
-		; Seção de Partições
+		; Seção de Partições com GroupBox
 			MyGui.Add("Text", "x10 w410 h20 c" CORES.TEXTO_ESCURO, "📊 Status das Partições:")
-			guiCtrlParticoesText := MyGui.Add("Edit", "x10 w410 h150 ReadOnly Multi Background" CORES.FUNDO_NEUTRAL " c" CORES.TEXTO_ESCURO)
+			MyGui.Add("GroupBox", "x10 y+10 w410 h165", " Partições ")
 
-				MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
+			Loop 8 {
+				yPos := 340 + ((A_Index - 1) * 16)
+				guiCtrlParticoes.Push("")
+				status := ObterStatusParticao(A_Index)
+				guiCtrlParticoes[A_Index] := MyGui.Add("Text", "x20 y" yPos " w390 h16 c" CORES.TEXTO_CLARO " 0x1000 Background" status.cor, "Partição " A_Index ": " status.texto)
+			}
+
+			MyGui.Add("Text", "x10 w410 h2 Background" CORES.BORDER_INFO, "")
 
 		; Seção de Histórico
 			MyGui.Add("Text", "x10 w410 h20 c" CORES.TEXTO_ESCURO, "📜 Histórico de Ações:")
@@ -602,10 +603,9 @@ Persistent
 		; Valores iniciais
 			guiCtrlStatusConexao.Value := "🔴 DESCONECTADO"
 			guiCtrlTimestamp.Value := "Última atualização:`t00:00:00"
-			guiCtrlParticoesText.Value := "Aguardando dados... `n`n(Pressione F3 para consultar status)"
 			guiCtrlHistorico.Value := "Sistema iniciado`nAguardando conexão..."
 
-			MyGui.Show("x0 y0 w430 ")
+			MyGui.Show("x0 y0 ")
 			MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
 	}
 
