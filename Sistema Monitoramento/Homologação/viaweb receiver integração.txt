@@ -1,0 +1,2985 @@
+Manual de Integração
+para desenvolvedores
+V10.0.8 – R1.19 – Setembro 2024
+www.viawebsystem.com.br
+
+A P R E S E N T A Ç Ã O D O K I T
+O kit de desenvolvimento é composto do software VIAWEB Receiver, seu Manual de
+Operação e Configuração, o Manual de Integração para Desenvolvedores (este documento),
+códigos de exemplo em diferentes linguagens, um VIAWEB virtual para permitir ao
+desenvolvedor realizar testes sem a necessidade de um módulo VIAWEB e uma ferramenta
+para efetuar testes de carga e performance.
+Para a distribuição do software desenvolvido, há duas alternativas:
+• o VIAWEB Receiver pode ser instalado à parte pelo usuário do software (empresas de
+monitoramento), no computador em que ele desejar, da forma como ele desejar.
+• o software desenvolvido (ou seu instalador) pode automatizar a instalação de um VIAWEB
+Receiver, seguindo os passos da Configuração Manual descritos no Manual de Operação e
+Configuração.
+Cabe ao desenvolvedor do software providenciar uma ferramenta automatizada para
+obtenção dos dados de conexão ao módulo de integração com monitoramento do VIAWEB
+Receiver (endereço IP, porta, chave criptográfica e IV), ou então uma documentação passo a
+passo orientando o usuário final a obter estes dados e fornecê-los ao software de
+monitoramento.
+Antes de prosseguir com a leitura deste manual e início do desenvolvimento,
+recomendamos a leitura do Manual de Operação e Configuração do VIAWEB Receiver, bem
+como a familiarização da operação e configuração de um VIAWEB Receiver através de sua
+interface web.
+Na sequência, use o próximo capítulo Implementação simplificada para criar um
+exemplo simples de integração que funcione em sua linguagem de programação e seu
+ambiente de desenvolvimento. Só então continue a leitura dos demais capítulos para tornar
+sua implementação mais robusta e resiliente.
+Para eventuais dúvidas, sugestões ou suporte contate a S I - Sistemas Inteligentes
+LTDA.
+www.viawebsystem.com.br
+suporte@viawebsystem.com.br
+Apresentação do kit 5
+I M P L E M E N T A Ç Ã O S I M P L I F I C A D A
+Este capítulo resume os passos necessários para integrar um software de
+monitoramento ao VIAWEB Receiver. Poucas explicações serão dadas: para mais informações
+sobre cada um dos passos, consulte os capítulos a seguir. O objetivo é construir rapidamente
+um exemplo de integração que funcione, recebendo eventos e executando comandos.
+PREPARAÇÃO DO AMBIENTE DE DESENVOLVIMENTO
+1. Instale o VIAWEB Receiver no seu próprio computador de desenvolvimento. No Windows,
+utilize o instalador automático (setup.exe) selecionando Adicionar configurações típicas na
+tela Configurações iniciais.
+2. Com um browser de internet, acesse a interface web do VIAWEB Receiver pelo endereço
+http://127.0.0.1:1780/ . A senha está em branco, apenas clique em Entrar.
+3. Programe um equipamento VIAWEB para ficar online neste VIAWEB Receiver, ou use o
+simulador VIAWEB virtual para conectar no VIAWEB Receiver. Não utilize o ISEP 0000.
+4. Na interface web, aparecerá o equipamento programado piscando em amarelo. Clique
+sobre ele e no campo Autorização, selecione Conexão autorizada. Clique em Alterar.
+5. Clique em Configurações, Integração com monitoramento e marque a caixa Permitir acesso
+do computador local sem criptografia. Clique em Alterar.
+CONEXÃO SOCKET
+6. No seu código fonte, programe para abrir uma conexão socket TCP para o endereço IP
+127.0.0.1, porta 2700. Atenção: o exemplo abaixo sem criptografia só vai funcionar em
+acessos no mesmo computador, via 127.0.0.1 ou outro IP localhost.
+7. Com a conexão aberta, programe o envio de um JSON mal formatado, como por exemplo a
+string {#invalid=x;z}
+8. Programe a recepção dos bytes, imprima na tela o que vier e feche a conexão.
+9. Teste. O programa imprimirá {"a":[número aleatório], "resp":
+[{"descricao":"Sintaxe JSON inv\u00E1lida: {#invalid=x;z}\u0000\
+u0000", "erro":1, "param1":"{#invalid=x;z}\u0000\u0000"}]}
+CRIPTOGRAFIA
+10. Na interface web do VIAWEB Receiver, clique em Configurações, Integração com
+monitoramento. Desmarque a caixa Permitir acesso do computador local sem criptografia e
+copie os valores Chave criptográfica e Initialization Vector (IV) para o seu código fonte,
+inicializando uma variável com a chave e duas variáveis com cópias do IV. Clique em
+Alterar.
+11. Após a preparação do JSON mal formatado {#invalid=x;z} e antes do envio, programe
+a criptografia da string JSON usando AES-256 em modo CBC. Use a chave criptográfica e
+uma das cópias do IV, que será alterada e assim deve ser utilizada cumulativamente nos
+Criptografia 6
+próximos envios. Se necessário, dependendo da linguagem de programação utilizada,
+acrescente bytes 00h à string JSON para que o tamanho final em bytes seja um múltiplo de
+16 (como 16, 32, 48, 64, etc), ou use um esquema pronto de padding como PKCS#7 (RFC
+5652), ANSI X9.23, ISO-10126 e null-padding (zeros).
+12. Após a recepção dos bytes e antes de imprimi-los na tela, programe a descriptografia
+usando AES-256 em modo CBC. Utilize a mesma chave criptográfica e a outra cópia do IV,
+que será alterada e assim deve ser utilizada cumulativamente nas próximas recepções. No
+final da string descriptografada, ignore ou remova possíveis bytes 00h recebidos, ou use
+um esquema pronto de padding de acordo com sua linguagem de programação.
+13. Em vez de imprimir os bytes recebidos, imprima na tela a string descriptografada.
+14. Teste. O programa imprimirá {"a":[número aleatório], "resp":
+[{"descricao":"Sintaxe JSON inv\u00E1lida: {#invalid=x;z}\u0000\
+u0000", "erro":1, "param1":"{#invalid=x;z}\u0000\u0000"}]}
+15. Para verificar se a criptografia ou descriptografia estão sendo feitas corretamente, utilize
+sites como https://aes.online-domain-tools.com/ ou procure no Google por "online aes
+encryption".
+IDENTIFICAÇÃO E RECEPÇÃO DE EVENTOS
+16. Substitua o JSON mal formatado por {"oper":[{"acao":"ident",
+"nome":"Software teste"}, {"acao":"salvarVIAWEB", "operacao":2,
+"monitoramento":1}]} .
+17. Teste. Desta vez o programa imprimirá {"a":[número aleatório], "resp":
+[{"versao":1000,"versaoProto":1}]}
+18. Gere um evento no equipamento VIAWEB conectado ao VIAWEB Receiver.
+19. Execute o programa novamente. Neste caso, a primeira resposta (a de identificação)
+será diferente e virá com os dados do evento, como por exemplo: {"a":[número
+aleatório], "resp":[{"versao":1000,"versaoProto":1}], "oper":
+[{"id":"15-evt", "acao":"evento", "dia":28, "mes":11, "hora":14,
+"minuto":30, "codigoEvento":"1412", "particao":0, "zonaUsuario":51,
+"isep":"0003"}]}
+20. Modifique o programa para que ele permaneça conectado, imprima as mensagens
+descriptografadas à medida em que forem recebidas e que só feche a conexão quando o
+programa for cancelado.
+21. Para cada evento recebido, envie a resposta {"resp":[{"id":"15-evt"}]}
+criptografada, substituindo o valor do campo "id" pelo mesmo valor do ID do evento.
+ENVIO DE COMANDOS
+22. Programe para que, quando o usuário pressione uma tecla ou clique em um botão, o
+programa envie o seguinte JSON criptografado: {"oper":[{"acao":"executar",
+"idISEP":"090A", "comando":[{"cmd":"armar", "password":1515,
+Envio de comandos 7
+"particoes":[3,4]}]}]}
+23. Modifique o programa para que, além de eventos, a recepção também possa receber
+respostas de comandos. Em caso de sucesso, elas virão como {"resp":
+[{"cmd":"armar", "resultado":0}]} .
+Importante: as centrais VIAWEB não armam com zonas abertas. O comando pode
+retornar "sucesso", informando que a senha foi aceita e tinha permissão para armar, mas a
+central pode não ter armado. Envie uma outra mensagem JSON com {"oper":
+[{"acao":"executar","idISEP":"090A", "comando":[{"cmd":"particoes"}]}]}
+após alguns instantes para verificar se a central conseguiu armar com sucesso.
+EXEMPLOS DE SEQUÊNCIA DE MENSAGENS
+Exemplo de comando de identificação e autorização para recepção de evento.
+Enviar para o VIAWEB Receiver:
+{"oper":[{"acao":"ident","nome":"Software teste"},
+{"acao":"salvarVIAWEB","operacao":2,"monitoramento":}]}
+Recebe do VIAWEB Receiver:
+{"a":16435368,"resp":[{"versao":1000,"versaoProto":1}]}
+Exemplo de recepção de dois eventos, um de alarme (código 1130) e outro de restauro
+de alarme (código 3130):
+Recebe do VIAWEB Receiver:
+{"oper":[{"id":"21-
+evt","acao":"evento","dia":28,"mes":11,"hora":14,"minuto":43,"codigo
+Evento":"1130","particao":3,"zonaUsuario":9,"isep":"0003"}]}
+Enviar para o VIAWEB Receiver:
+{"resp":[{"id":"21-evt"}]}
+Recebe do VIAWEB Receiver:
+{"oper":[{"id":"22-
+evt","acao":"evento","dia":28,"mes":11,"hora":14,"minuto":45,"codigo
+Evento":"3130","particao":3,"zonaUsuario":9,"isep":"0003"}]}
+Enviar para o VIAWEB Receiver:
+{"resp":[{"id":"22-evt"}]}
+Exemplo de envio de comando para listar status de partições:
+Enviar para o VIAWEB Receiver:
+{"oper":[{"id":28923,"acao":"executar","idISEP":"090A","comando":
+[{"cmd":"particoes"}]}]}
+Recebe do VIAWEB Receiver:
+{"resp":
+Exemplos de sequência de mensagens 8
+[{"id":28923,"cmd":"particoes","pos":1,"armado":1,"disparado":0},
+{"cmd":"particoes","pos":2,"armado":0,"disparado":0},
+{"cmd":"particoes","pos":3,"armado":0,"disparado":0},
+{"cmd":"particoes","pos":4,"armado":0,"disparado":0},
+{"cmd":"particoes","pos":5,"armado":0,"disparado":0},
+{"cmd":"particoes","pos":6,"armado":0,"disparado":0},
+{"cmd":"particoes","pos":7,"armado":0,"disparado":0},
+{"cmd":"particoes","pos":8,"armado":0,"disparado":0}]}
+Sequência de eventos e mensagens para recepção e autorização de nova conexão
+ISEP.
+Recebe do VIAWEB Receiver:
+{"oper":[{"id":"101-
+evento","acao":"evento","codigoEvento":"1AA5","dia":24,"eventoInterno":
+3,"hora":17,"ip":"177.48.20.5","isep":"2001","mes":1,"minuto":44,"model
+o":"VW16ZETH","meio":"ETH","numSerie":"25362030","nomeViaweb":"VIAWEB1733","portaViaweb":[1733],"recepcao":1643057094}]}
+Enviar para o VIAWEB Receiver:
+{"resp":[{"id":"101-evt"}],"oper":
+[{"id":42,"acao":"salvarCliente","autorizacao":1,"idISEP":"2001","opera
+cao":2,"porta":1733}]}
+Recebe do VIAWEB Receiver:
+{"resp":[{"id":42}],"oper":[{"id":"102-
+evento","acao":"evento","codigoEvento":"3AA6","dia":24,"eventoInterno":
+1,"hora":17,"ip":"177.48.20.5","isep":"2001","mes":1,"minuto":46,"model
+o":"VW16ZETH","meio":"ETH","numSerie":"25362030","nomeViaweb":"VIAWEB1733","portaViaweb":[1733],"recepcao":1643057175}]}
+Enviar para o VIAWEB Receiver:
+{"resp":[{"id":"102-evt"}]}
+Os exemplos acima servem apenas como uma breve demonstração do que é possível
+de se fazer com o VIAWEB Receiver. Há muito mais nos próximos capítulos.
+C O N E X Ã O S O C K E T
+A integração com o VIAWEB Receiver funciona através da abertura de uma conexão
+socket TCP do software de monitoramento para o VIAWEB Receiver. Desta forma não há
+necessidade de ambos ficarem instalados no mesmo computador. Porém se precisarem ficar
+juntos, também não há problema, pois o VIAWEB Receiver utiliza pouquíssimos recursos.
+Para realizar a conexão socket, quatro informações são necessárias:
+• endereço IP do computador onde está o VIAWEB Receiver, podendo ser IPv4 ou IPv6.
+Conexão socket 9
+• porta da integração com monitoramento, por padrão 2700.
+• chave criptográfica AES 256-bit, conjunto de 32 bytes que varia de instalação para
+instalação.
+• initialization vector (IV) para criptografia em modo CBC, conjunto de 16 bytes que
+também varia de instalação para instalação.
+Obs.: É possível configurar o VIAWEB Receiver para permitir conexões sem criptografia,
+desde que o software de monitoramento esteja sendo executado no mesmo computador do
+VIAWEB Receiver. Neste caso a chave criptográfica e o IV não serão necessários. Mais
+informações na próxima seção.
+Quando o VIAWEB Receiver estiver rodando no mesmo computador do software de
+monitoramento, pode ser usado o endereço IP 127.0.0.1 (localhost). Caso contrário, é
+necessário descobrir o endereço IP do computador onde o VIAWEB Receiver está rodando: se
+for Windows, abra um Prompt de Comando e execute ipconfig ; se for um Linux, abra um
+terminal e execute ip addr . Os demais dados podem ser obtidos acessando-se o VIAWEB
+Receiver, e clicando em Configurações, Integração com monitoramento.
+Outra opção é acessar a seguinte chave de registry no Windows, criada e atualizada
+pelo VIAWEB Receiver no computador onde ele estiver rodando:
+HKEY_LOCAL_MACHINE\SOFTWARE\SI Sistemas Inteligentes Eletronicos\VIAWEB
+Receiver\IntegracaoMonitoramento
+Os valores estarão nas entradas IP (REG_SZ), Porta (REG_DWORD), ChaveAES256
+(REG_BINARY de 32 bytes) e IVCBC (REG_BINARY de 16 bytes). Apenas preste atenção
+quando for misturar softwares de 32-bits em sistemas operacionais de 64-bits:
+Windows 32-bits Windows 64-bits
+VIAWEB Receiver
+32-bits
+Chave de registry disponível
+para softwares 32-bits
+Chave de registry disponível
+apenas na área de 32-bits
+VIAWEB Receiver
+64-bits Incompatível (não executa) Chave de registry disponível
+para softwares 32-bits e 64-bits
+A terceira opção é ler os valores diretamente do arquivo de configuração do VIAWEB
+Receiver. No Windows, o arquivo VIAWEBReceiver.ini está localizado por default na pasta
+C:\ProgramData\SI Sistemas Inteligentes Eletronicos\VIAWEB Receiver\ ;
+no Linux, o arquivo é /etc/VIAWEBReceiver.conf . As informações ficam na seção
+[IntegracaoMonitoramento] , nas entradas Porta , ChaveAES256 e IVCBC . Já o
+endereço IP deve ser obtido de outra forma, visto que ele não fica gravado dentro do arquivo
+de configuração.
+CRIPTOGRAFIA
+A criptografia pode ser desligada apenas para conexões locais (localhost): se isto for
+desejável, abra a interface Web do VIAWEB Receiver, navegue até Configurações / Integração
+Criptografia 10
+com Monitoramento e marque a caixa "Permitir acesso do computador local sem criptografia".
+Em qualquer outro caso, incluindo acessos feitos pela rede interna, a criptografia é obrigatória
+tanto no envio quanto na recepção de dados usando Advanced Encryption Standard (AES),
+também conhecido como Rijndael, com chave de 256-bit.
+Antes da aplicação da criptografia, os dados são divididos em blocos de 16 bytes de
+tamanho. Ao final dos dados, pode ser necessário acrescentar bytes de preenchimento
+(padding). VIAWEB Receiver aceita os seguintes padrões de padding:
+• Zeros ou null-padding: caso o último bloco não tenha 16 bytes, zeros são adicionados até
+completar o bloco. Caso o último bloco já tenha 16 bytes, nada precisa ser adicionado. Este
+é o modo padrão de operação e o mais fácil para implementar manualmente (dependendo
+da linguagem de programação).
+• ANSI X9.23: o último byte do bloco deve trazer a quantidade de bytes extras adicionados, e
+os demais são preenchidos com byte zero (0x00). Caso o último bloco já tenha 16 bytes,
+um novo bloco de 16 bytes deve ser adicionado com quinze zeros (0x00) e o valor 16
+(0x10).
+• PKCS#7 (RFC 5652): semelhante ao ANSI X9.23, mas em vez de bytes zero, a quantidade
+de bytes extra adicionados deve ser repetida até preencher o bloco. Por exemplo, caso 8
+bytes extra precisem ser adicionados, 8 bytes com valor 8 (0x08) deve ser adicionado. Veja
+os exemplos a seguir.
+• ISO-10126: semelhante ao ANSI X9.23, porém os bytes extras devem ser preenchidos com
+valores aleatórios.
+Exemplo 1: o último bloco de 16 bytes contém o final de uma mensagem JSON
+finalizando com "id":20}]} . Em ASCII hexadecimal, isso resulta nos bytes 22 69 64 22
+3A 32 30 7D 5D 7D , faltando 6 bytes para preencher um bloco de 16 bytes.
+Zero padding: 22 69 64 22 3A 32 30 7D 5D 7D 00 00 00 00 00 00
+ANSI X9.23: 22 69 64 22 3A 32 30 7D 5D 7D 00 00 00 00 00 06
+PKCS#7: 22 69 64 22 3A 32 30 7D 5D 7D 06 06 06 06 06 06
+ISO-10126: 22 69 64 22 3A 32 30 7D 5D 7D 32 FA DE 08 82 06 (5 bytes
+aleatórios)
+Exemplo 2: o último bloco com o final de uma mensagem JSON tem 16 bytes. O que
+cada padding deve adicionar ao final:
+Zero padding: (não adicionar mais nada)
+ANSI X9.23: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 10
+PKCS#7: 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10
+ISO-10126: 47 C5 F2 12 2A 7F 41 5D E1 0F 32 FA DE 08 82 10 (15 bytes
+aleatórios)
+Criptografia 11
+VIAWEB Receiver aguarda o primeiro pacote de dados vindos do software de
+monitoramento antes de responder qualquer coisa. Baseado nos dados recebidos, uma análise
+é feita para decidir qual o padding utilizado e este é adotado até o final da conexão. Caso não
+seja identificado um padding válido, será adotado o de zeros (o que pode causar mensagens
+de erro logo na sequência).
+No software de monitoramento, caso a linguagem de programação não tenha suporte
+para paddings, a lógica ainda assim é muito simples. O conteúdo dos dados é um JSON: basta
+varrer os dados byte a byte contando os caracteres { e } : quando as quantidades forem
+iguais, a mensagem JSON estará completa e os próximos bytes poderão ser descartados.
+Para que os pacotes criptografados não sejam iguais para conteúdos idênticos, a
+interface de integração usa criptografia no modo de operação CBC, onde um array de 16 bytes
+Initialization Vector (IV) é necessário para gerar o primeiro pacote. O software de
+monitoramento precisa manter durante toda a conexão dois conjuntos de 16 bytes IV, um
+exclusivo para envio (criptografia) e outro exclusivo para recepção (descriptografia).
+No envio (criptografia), o IV original é usado apenas na criptografia do primeiro bloco de
+16 bytes. O resultado criptografado (16 bytes) deve ser salvo e usado como IV na criptografia
+do próximo bloco de 16 bytes a ser enviado, e assim sucessivamente até a conexão cair.
+Na recepção (descriptografia), o IV original é usado apenas na descriptografia do
+Criptografia 12
+primeiro bloco de 16 bytes recebidos. O bloco original ainda criptografado deve ser salvo e
+usado como IV na descriptografia do próximo bloco de 16 bytes recebido, e assim
+sucessivamente até a conexão cair.
+COMUNICAÇÃO BIDIRECIONAL ASSÍNCRONA
+A comunicação é bidirecional, partindo assincronamente do VIAWEB Receiver ou do
+monitoramento mas sempre exigindo uma resposta de confirmação para cada operação
+enviada. Não há necessidade de esperar a resposta de confirmação antes do envio da próxima
+operação ou resposta por qualquer um dos lados, e também não há garantias de que as
+respostas sejam enviadas na mesma ordem das operações. Por exemplo:
+A única exceção são os eventos: por default, são sempre enviados em ordem e
+individualmente, sendo que o próximo evento só é enviado ao receber a resposta de evento
+Comunicação bidirecional assíncrona 13
+Evento ISEP 02FA (operação id: 64-evento)
+Monitoramento VIAWEB Receiver
+Identificação do software de monit. (operação id: 1456)
+Armar ISEP 1770 (operação id: ARM-X1)
++ Evento recebido (resposta id: 64-evento)
+Software identificado OK (resposta id: 1456)
+Armado ISEP 1770 (resposta id: ARM-X1)
++ Evento ISEP 1770 (operação id: 65-evento)
+Evento recebido (resposta id: 65-evento)
+Falha armar ISEP 0314 (resposta id: ARM-62)
+Armar ISEP 0314 (operação id: ARM-62)
+recebido. Este comportamento pode ser alterado na operação de Identificação, conforme
+documentado mais adiante.
+F O R M A T O D A S M E N S A G E N S
+Todas as mensagens são no formato JSON (JavaScript Object Notation) em UTF-8,
+seguindo a RFC 8259 disponível em https://tools.ietf.org/html/rfc8259 . Uma única mensagem
+JSON poderá conter nenhuma, uma ou várias operações, junto com nenhuma, uma ou várias
+respostas. Quando a operação é identificada com uma string ID, ela recebe respostas
+identificadas com a mesma string ID. Operações sem identificação receberão igualmente
+respostas sem identificação. Sendo opcional, a string ID pode ter qualquer valor, qualquer
+caractere e qualquer tamanho com 0 (zero), 1 (um) ou vários caracteres, podendo ser
+reutilizada à vontade em novas operações.
+Formato geral Descrição dos campos
+{
+"oper": [
+{
+"id": "str",
+...
+}, {
+"id": "str",
+...
+}, { ... }
+],
+"resp": [
+{
+"id": "str",
+...
+}, {
+"id": "str",
+...
+}, { ... }
+],
+"eventosPendentes": num,
+"testesPendentes": num
+}
+=> Array opcional contendo zero, um ou vários objetos de
+operações.
+=> Campo de identificação da operação.
+=> Array opcional contendo zero, um ou vários objetos de
+respostas de operações (confirmações).
+=> Campo de identificação da resposta: o valor é o mesmo da
+operação que originou a resposta.
+=> Caso haja eventos no VIAWEB Receiver pendentes de envio
+para o software de monitoramento, este valor informa a
+quantidade de eventos aguardando na fila.
+=> Caso haja eventos de teste no VIAWEB Receiver pendentes
+de envio para o software de monitoramento, este valor informa
+a quantidade de eventos de teste aguardando na fila.
+Formato das mensagens 14
+Obs: em toda esta documentação, os exemplos de dados em formato JSON estão
+apresentados com espaços, indentações e quebras de linha apenas para melhorar a leitura. Na
+prática, os dados podem trafegar sem formatação alguma.
+Obs 2: os nomes dos campos são todos case-sensitive, portanto preste atenção!
+Obs 3: campos com nomes não reconhecidos serão ignorados pelo VIAWEB Receiver, e
+o software de monitoramento deve ignorar campos que o VIAWEB Receiver possa enviar a
+mais. Isso possibilita independência nas atualizações de versão por ambos os lados, mantendo
+sempre a compatibilidade entre eles.
+FORMATO DAS RESPOSTAS DE ERRO
+Em caso de erro na execução da operação, o formato de retorno segue o seguinte
+padrão:
+Formato de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": num,
+"paramX": "str",
+"descricao": "str"
+}, { ... } ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da
+operação que originou a resposta.
+=> Código numérico identificando o erro que ocorreu. Consulte a
+documentação de cada operação para saber quais são os erros
+previstos e seus códigos.
+=> Parâmetros opcionais para complementação da mensagem de
+erro. X é um número inteiro sequencial iniciando em 1.
+=> Mensagem de erro descritiva formatada no idioma do software
+onde o erro ocorreu (VIAWEB Receiver ou software de
+monitoramento).
+Softwares de monitoramento devem estar preparados para tratar os erros previstos e/ou
+traduzir o código numérico de erro em uma mensagem informativa no idioma do usuário final,
+utilizando os parâmetros opcionais param1, param2, param3, etc conforme necessidade. O
+campo descricao está sujeito à mudança de versão para versão do VIAWEB Receiver, e deve
+ser usado apenas para apresentar erros não previstos ou que forem acrescentados em
+versões futuras do VIAWEB Receiver, até que sejam devidamente tratados pelo software de
+monitoramento.
+O P E R A Ç Õ E S E R E S P O S T A S
+Todos os campos das mensagens são opcionais. Campos não informados assumirão
+valores default, conforme documentação a seguir, ou valores configurados na interface do
+VIAWEB Receiver. Quando houver conflito entre o valor informado na operação e o valor
+Operações e Respostas 15
+configurado no VIAWEB Receiver, o valor da operação será utilizado e possivelmente
+sobrescreverá o configurado no VIAWEB Receiver.
+ERROS COMUNS PREVISTOS PARA TODAS AS OPERAÇÕES
+Os seguintes erros poderão ser retornados na execução das operações por qualquer um
+dos lados, tanto pelo software de monitoramento quanto pelo VIAWEB Receiver.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"erro": 1,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Erro 1: sintaxe JSON inválida. Este erro nunca retorna "id" pois,
+como não é possível extrair as informações do JSON, o "id" não
+pode ser obtido. Após o envio ou recepção deste erro, a conexão
+será ou precisa ser fechada para a troca de mensagens retomar seu
+fluxo normal.
+=> Parte da mensagem JSON com no máximo 32 caracteres
+contendo a falha de sintaxe.
+=> "Sintaxe JSON inválida: param1"
+"id": "str",
+"erro": 2,
+"param1": "str",
+"param2": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 2: valor inválido para o campo informado, por exemplo uma
+string com letras em lugar de um número ou números fora de uma
+faixa aceitável.
+=> Nome do campo com o valor inválido.
+=> Valor do campo inválido
+=> "Valor inválido em param1: param2"
+"id": "str",
+"erro": 3,
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 3: a conexão do software de monitoramento foi bloqueada
+usando a interface web do VIAWEB Receiver. Um desbloqueio
+manual é necessário para que a conexão volte a funcionar.
+=> "Conexão bloqueada"
+"id": "str",
+"erro": 4,
+"descricao": "str"
+=> Campo identificando a operação que originou o erro.
+=> Erro 4: o endereço IP do computador do software de
+monitoramento não está autorizado a acessar a interface de
+integração do VIAWEB Receiver. Uma autorização manual é
+necessária para que a conexão volte a funcionar.
+=> "IP não autorizado"
+Erros comuns previstos para todas as operações 16
+} ]
+}
+IDENTIFICAÇÃO (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação de identificação identifica unicamente uma instância do software de
+monitoramento junto ao VIAWEB Receiver, autorizando a comunicação entre os dois
+softwares. Outras operações até podem ser enviadas antes ou junto com a primeira operação
+de identificação, porém só serão processadas e respondidas após o processamento com
+sucesso da identificação.
+Importante aqui é fornecer sempre o mesmo nome de identificação a cada conexão, pois
+o VIAWEB Receiver irá criar um buffer de operações e respostas não entregues para cada
+software de monitoramento desconectado; assim que o software reconectar, as operações e
+respostas geradas enquanto o software estava offline serão enviados. Cópias ou outras
+instalações do software que desejarem um buffer de operações independente devem portanto
+fornecer nomes de identificação diferentes. Um segundo software que se conecte usando o
+mesmo nome de identificação irá desconectar o primeiro, tomando seu lugar.
+Caso se deseje trocar o nome de identificação preservando seu histórico, é necessário
+conectar e identificar-se primeiro com o nome antigo, e na mesma conexão reenviar uma outra
+operação de identificação com o nome novo. A operação pode também ser enviada novamente
+caso se deseje trocar algum dos parâmetros iniciais.
+Como a operação de identificação é a primeira mensagem trafegada, sugere-se por
+motivos de segurança adicionar um campo com um número randômico qualquer para que a
+mensagem criptografada nunca saia repetida, mesmo com execuções frequentes. Caso a
+linguagem de programação não tenha suporte a números randômicos, uma opção é usar o
+Unix Timestamp (número de segundos desde 1º de janeiro de 1970) ou qualquer valor
+associado ao tempo corrente, como o número de segundos ou milissegundos da hora atual.
+Não é necessário realizar nenhum cadastro prévio no VIAWEB Receiver para receber
+conexões de softwares novos: se o VIAWEB Receiver estiver configurado adequadamente
+para receber conexões, e se o software realizar a conexão com dados corretos de criptografia,
+a conexão será recebida e aceita.
+Operação Descrição dos campos da operação
+{
+"a": num,
+"oper": [ {
+"id": "str",
+"acao": "ident",
+"nome": "str",
+=> Número randômico opcional para aumentar a segurança da
+criptografia.
+=> Campo de identificação da operação.
+=> Operação de identificação do software de monitoramento.
+=> Nome do software de monitoramento. Caso não seja informado,
+o software não terá nome ou preservará o nome anterior caso já
+Identificação (Monitoramento para VIAWEB Receiver) 17
+"retransmite": num,
+"limite": num,
+"serializado": 0/1,
+"limiteTestes": num,
+"versaoProto": num
+} ]
+}
+tenha se identificado anteriormente nesta mesma conexão.
+=> Solicita ao VIAWEB Receiver para retransmitir operações de
+eventos que não são respondidas a cada X segundos. Informe 0
+para retransmitir apenas após reconexão, ou -1 para nunca
+retransmitir. Caso não informado, assume 60 segundos.
+=> Limite de mensagens pendentes guardadas em arquivo
+enquanto o software está offline, entre 0 e 999999. Após atingir o
+limite, as mensagens mais antigas serão descartadas à medida
+que surgirem mensagens novas. Caso não informado, assume
+20000.
+=> Regula o envio de eventos. Para o valor 1, os eventos são
+enviados na ordem de recepção e individualmente, sendo que o
+próximo evento é enviado apenas após receber a confirmação do
+software de monitoramento. Neste modo, os eventos de teste têm
+prioridade mais baixa que os demais eventos. Para o valor 0, os
+eventos são enviados imediatamente ao serem recebidos do
+equipamento, podendo ser agrupados numa única mensagem para
+maior performance. Caso não informado, assume 1.
+=> Limite de eventos de teste guardados na fila de eventos de
+teste, de baixa prioridade. Informe de 0 a 99999 para descartar os
+eventos mais antigos após atingir o limite, à medida que surgirem
+eventos de teste novos. Ou informe -1 para nunca descartar os
+eventos de testes, porém o valor do campo limite (que limita a
+quantidade de mensagens pendentes) ainda se aplicará. Caso não
+informado, assume -1.
+=> Versão do protocolo em que o software de monitoramento está
+programado. A versão corrente é 1. Caso não seja informado ou
+tenha um valor inválido, o VIAWEB Receiver irá responder na
+versão mais recente que ele suportar. Consulte o histórico de
+versões ao final deste manual.
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Resposta Descrição dos campos da resposta
+{
+"a": num,
+"resp": [ {
+"id": "str",
+"versao": num,
+=> Número randômico para aumentar a segurança da criptografia:
+ignore.
+=> Campo de identificação da resposta: o valor é o mesmo da
+operação de identificação.
+=> Versão do VIAWEB Receiver em formato numérico, por exemplo
+Identificação (Monitoramento para VIAWEB Receiver) 18
+"versaoProto": num
+} ]
+}
+1021 para "10.2.1". Mesmo que haja um quarto dígito (ex.
+"10.2.1.3"), apenas os três primeiros serão informados.
+=> Versão do protocolo em que o VIAWEB Receiver irá responder.
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+Respostas de operações de identificação não entregues em conexões anteriores não
+serão enviadas após reconexão.
+PING (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação de ping testa a comunicação entre o software de monitoramento e o
+VIAWEB Receiver.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "ping"
+} ]
+}
+=> Campo de identificação da operação.
+=> Operação de ping (teste de comunicação). Campo opcional: caso o
+software de monitoramento não envie "acao" para o VIAWEB Receiver,
+este responderá a operação como se fosse uma operação de ping.
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+ping.
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+Respostas de operações de ping não entregues em conexões anteriores não serão
+enviadas após reconexão.
+LER CONFIG. SERVIDORES VIAWEB (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para ler a configuração dos servidores VIAWEB solicita ao VIAWEB
+Receiver os dados de um, vários ou todos os servidores VIAWEB configurados, identificandoos pelo nome ou pela porta TCP onde cada servidor atende os equipamentos, por padrão a
+Ler Config. Servidores VIAWEB (Monitoramento para VIAWEB Receiver) 19
+1733.
+O VIAWEB Receiver possibilita a criação ou alteração de servidores VIAWEB tanto pela
+sua interface web quanto pela interface de integração. As operações de leitura de configuração
+e salvar configurações ajudam o software de monitoramento a se certificar de que as
+configurações necessárias para sua execução não foram alteradas por outro software ou via
+interface web. Utilize-as à vontade para tornar o software mais resistentes a erros de instalação
+e operação.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "lerVIAWEB",
+"porta": num,
+"porta": [ num, ... ],
+"nome": "str",
+"nome": [ "str", ... ]
+} ]
+}
+=> Campo de identificação da operação.
+=> Operação para ler a configuração dos servidores VIAWEB.
+=> Informe uma das portas TCP do servidor VIAWEB que se
+deseja informações, ou um array com uma lista de portas. Caso
+não seja informado nem este nem o campo "nome", a resposta
+listará todos os servidores VIAWEB cadastrados.
+=> Informe o nome do servidor VIAWEB que se deseja
+informações, ou um array com uma lista de nomes, sem
+diferenciar maiúsculas de minúsculas. Caso este campo seja
+informado junto com o campo "porta", a resposta listará todos os
+servidores VIAWEB que atendam um ou outro requisito.
+Em caso de sucesso, a resposta para esta operação segue abaixo. Maiores informações
+sobre cada campo podem ser obtidas no Manual de Operação e Configuração do VIAWEB
+Receiver.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str",
+"viaweb": [ {
+=> Campo de identificação da resposta: o valor é o
+mesmo da operação de leitura de configuração dos
+servidores VIAWEB.
+=> Array de configurações, um objeto para cada servidor
+VIAWEB solicitado.
+"nome": "str",
+"porta": [ num, ... ],
+"ip": [ "str", ... ],
+=> Nome de identificação do servidor VIAWEB.
+=> Portas TCP onde o servidor VIAWEB atende os
+equipamentos.
+=> Endereços IPs onde o servidor VIAWEB atende. Um
+valor 0.0.0.0 indica todos os endereços IPv4 configurados
+Ler Config. Servidores VIAWEB (Monitoramento para VIAWEB Receiver) 20
+"supervisao": "str",
+"isepTempDe": "str",
+"isepTempAte": "str",
+"autoRecuperacao": num,
+"tolerancia": num,
+"atrasoDinamico": 0/1,
+"atrasoMax": num,
+"offlineGPRS": num,
+"offlineETH": num,
+"reenvio": num,
+"nivelLog": num,
+"atrasoInicial": num,
+"desabilitado": 0/1,
+no computador, e um valor :: indica todos os endereços
+IPv6 configurados.
+=> Conta de supervisão usada para gerar eventos
+internos do servidor. Valor hexadecimal de 4 dígitos.
+=> Faixa de ID ISEPs que poderão entrar online sem
+necessidade de autorização (porém com restrições).
+Valores hexadecimais de 4 dígitos cada.
+=> Por quantos segundos a funcionalidade de auto
+recuperação continuará ativa. 0 indica que a
+funcionalidade está desativada.
+=> Caso um equipamento não envie um sinal de ping, em
+quantos segundos o servidor VIAWEB considerará o
+cliente como offline.
+=> Após o cliente ser considerado offline, o servidor
+VIAWEB pode esperar alguns segundos antes de gerar e
+enviar o evento de offline. 1 calcula dinamicamente o
+tempo de atraso baseado nas quedas de conexão dos
+últimos 7 dias, 0 usa tempos de atraso fixos.
+=> Qual o limite máximo em segundos para atraso do
+evento de offline, utilizado apenas quando o atraso é
+calculado dinamicamente.
+=> Após o cliente ser considerado offline, em quantos
+segundos o servidor VIAWEB irá gerar um evento de
+offline para clientes conectados via GPRS ou Ethernet,
+utilizados apenas para tempos de atraso fixos.
+=> Quantidade de horas para o servidor VIAWEB repetir
+os eventos de offline e solicitação de autorização. Um
+valor 0 indica que o servidor não irá repetir estes eventos.
+=> Nível de mensagens para registrar em arquivo de log:
+0 para Network, 1 para Debug, 2 para Info, 3 para
+Operação, 4 para Erro e 5 para Nenhum.
+=> Quantidade de segundos para esperar antes de iniciar
+o servidor VIAWEB após o processo VIAWEB Receiver
+iniciar.
+=> Um valor 1 neste campo indica que o servidor está
+desabilitado, impedido de funcionar.
+"nickname": "str",
+"ipv4DDNS": 0/1,
+=> Apelido identificador do servidor VIAWEB registrado na
+plataforma AlarmeNET.com.
+=> Um valor 1 neste campo indica que o servidor registra
+seu endereço dinâmico externo IPv4 no domínio DNS
+Ler Config. Servidores VIAWEB (Monitoramento para VIAWEB Receiver) 21
+"ipv6DDNS": 0/1,
+"ipsFixos":[ "str", ...],
+nickname.vw.seg.br .
+=> Um valor 1 neste campo indica que o servidor registra
+seu endereço dinâmico IPv6 no domínio DNS
+nickname.vw.seg.br .
+=> Endereços IPs adicionais fixos registrados no domínio
+DNS nickname.vw.seg.br .
+"monitoramento": 0/1,
+"servidorDependente": 0/1,
+"minFaixaIsep": "str",
+"maxFaixaIsep": "str",
+"descarteEventos": num,
+"filtroEvento": num,
+"filtroRestauro": num
+}, { ... } ],
+=> Habilita o envio de eventos deste servidor VIAWEB
+para o software de monitoramento: 0 não envia eventos, 1
+envia eventos, incluindo os gerados enquanto o software
+de monitoramento estava desconectado.
+=> Um valor 1 condiciona a execução deste servidor
+VIAWEB ao software de monitoramento, ativando-o
+quando o software conectar e desativando-o quando o
+software desconectar. Um valor 0 desativa esta
+funcionalidade, deixando o servidor livre e independente
+do software de monitoramento.
+=> Faixa de ID ISEPs cujos eventos são reportados para
+o software de monitoramento. Valores hexadecimais de 4
+dígitos cada.
+=> Descarta eventos antigos, gerados há mais de num
+horas. Um valor 0 permite eventos gerados nos últimos 5
+minutos; -1 não descarta nenhum evento.
+=> Valores decimais de 0 a 255 indicando quais tipos de
+evento são reportados ao monitoramento. O valor
+corresponde à somatória das seguintes parcelas:
++1: processa eventos de alarmes, códigos E1xx e R1xx.
++2: processa eventos de código E2xx e R2xx.
++4: processa eventos de falhas, códigos E3xx e R3xx.
++8: processa armes e desarmes, códigos E4xx e R4xx.
++16: processa eventos de exclusão, códigos E5xx e R5xx.
++32: processa eventos de teste, códigos E6xx e R6xx.
++64: processa eventos de código E7xx e R7xx.
++128: processa eventos de código E8xx e R8xx.
+Eventos com código fora de padrão serão sempre
+reportados.
+"ipsLocais4": [
+ "str", ... ],
+"ipsLocais6": [
+ "str", ... ]
+} ]
+=> Lista com todos os endereços IPv4 configurados no
+computador onde o VIAWEB Receiver é executado.
+=> Lista com todos os endereços IPv6 configurados no
+computador onde o VIAWEB Receiver é executado.
+Ler Config. Servidores VIAWEB (Monitoramento para VIAWEB Receiver) 22
+}
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+SALVAR CONFIG. SERVIDOR VIAWEB (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para salvar configurações de um servidor VIAWEB permite criar, alterar ou
+excluir um servidor VIAWEB de dentro do VIAWEB Receiver.
+Atenção ao campo "monitoramento": quando ativo (valor 1), o VIAWEB Receiver irá
+enviar para o software de monitoramento os eventos do servidor VIAWEB. Caso o software
+desconecte, um buffer de eventos em arquivo será criado para armazenar os eventos dos
+equipamentos. Eles serão enviados na próxima vez que o software conectar.
+Campos não informados não serão alterados em caso de alteração, ou serão
+preenchidos com valores default em caso de criação. Para exclusão, basta informar operação
+3 e a porta e/ou nome para identificação: os demais campos serão ignorados. Todos os
+processadores de eventos associados ao servidor VIAWEB, incluindo servidores Innload, serão
+excluídos juntos com o servidor.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "salvarVIAWEB",
+"operacao": 0/1/2/3,
+"porta": num,
+"nome": "str",
+=> Campo de identificação da operação.
+=> Operação para salvar configurações do servidor
+VIAWEB.
+=> Informe 0 para alterar o servidor VIAWEB mas retornar
+um erro caso ele não exista; 1 para criar o servidor VIAWEB
+mas retornar um erro caso ele já exista; 2 para criar o
+servidor se não existir ou alterar suas configurações caso
+ele exista; 3 para excluir o servidor VIAWEB. Caso o campo
+não seja informado, assume 0.
+=> Uma das portas TCP onde o servidor VIAWEB atende,
+usada para identificá-lo dentro do VIAWEB Receiver. Caso
+não seja informado, a procura será pelo campo "nome".
+=> Nome do servidor VIAWEB, usado para identificá-lo
+dentro do VIAWEB Receiver sem diferenciar maiúsculas de
+minúsculas. Caso seja informado junto com o campo
+"porta", a operação será feita no servidor VIAWEB que
+atenda ambos os requisitos.
+Caso nem "nome" nem "porta" sejam informados, a
+operação será feita com nome Servidor VIAWEB e porta
+Salvar Config. Servidor VIAWEB (Monitoramento para VIAWEB Receiver) 23
+1733. Caso um servidor assim não exista, será procurado
+um servidor com porta 1733 e depois um com nome
+Servidor VIAWEB.
+"novaPorta": [ num, ... ],
+"novaPorta": num,
+"novoNome": "str",
+"ip": [ "str", ... ],
+"ip": "str",
+"supervisao": "str",
+"isepTempDe": "str",
+"isepTempAte": "str",
+"autoRecuperacao": 0/1,
+"tolerancia": num,
+"atrasoDinamico": 0/1,
+"atrasoMax": num,
+=> Em caso de alteração, quais as novas portas TCP onde
+o servidor VIAWEB deve atender os equipamentos. Caso
+seja apenas uma, pode-se informar como array ou como
+número simples.
+=> Em caso de alteração, qual o novo nome de identificação
+do servidor VIAWEB. Obs: o sistema não diferencia
+maiúsculas de minúsculas.
+=> Endereços IPs onde o servidor VIAWEB deve atender.
+Informe 0.0.0.0 para todos os endereços IPv4 configurados
+no computador, e/ou :: para todos os endereços IPv6. Caso
+não informado para criação, assume [ "0.0.0.0", "::" ]. Caso
+seja apenas um, pode-se informar como array ou como
+string simples.
+=> Conta de supervisão usada para gerar eventos internos
+do servidor, valor hexadecimal de 4 dígitos. Caso não
+informado para criação, assume 0000.
+=> Faixa de ID ISEPs que poderão entrar online sem
+necessidade de autorização (porém com restrições), valores
+hexadecimais de 4 dígitos cada. Caso não informado para
+criação, assume 0000 e 0000.
+=> Informe 0 para desativar a auto recuperação, ou 1 (ou
+qualquer valor maior que 0) para ativar por 15 minutos.
+Caso não informado para criação, assume 0.
+=> Caso um equipamento não envie um sinal de ping, em
+quantos segundos o servidor VIAWEB considerará o cliente
+como offline, de 120 a 3600. Caso não informado para
+criação, assume 120.
+=> Após o cliente ser considerado offline, o servidor
+VIAWEB pode esperar alguns segundos antes de gerar e
+enviar o evento de offline. Informe 1 para calcular
+dinamicamente o tempo de atraso baseado nas quedas de
+conexão dos últimos 7 dias, ou 0 para usar tempos de
+atraso fixos. Caso não informado para criação, assume 1.
+=> Qual o limite máximo para atraso do evento de offline, de
+30 a 86400 segundos, utilizado apenas quando o atraso é
+calculado dinamicamente. Caso não informado para
+criação, assume 3600 segundos.
+Salvar Config. Servidor VIAWEB (Monitoramento para VIAWEB Receiver) 24
+"offlineGPRS": num,
+"offlineETH": num,
+"reenvio": num,
+"nivelLog": num,
+"atrasoInicial": num,
+"desabilitado": 0/1,
+=> Após o cliente ser considerado offline, em quantos
+segundos o servidor VIAWEB irá gerar um evento de offline
+para clientes conectados via GPRS ou Ethernet, de 0 a
+86400, utilizados apenas para tempos de atraso fixos. Caso
+não informado para criação, assume 0 para ambos os
+campos.
+=> Quantidade de horas para o servidor VIAWEB gerar
+novamente eventos de offline e solicitação de autorização.
+Um valor 0 indica que o servidor não irá repetir estes
+eventos, máximo de 9999 horas. Caso não informado para
+criação, assume 0.
+=> Nível de mensagens para registrar em arquivo de log: 0
+para Network, 1 para Debug, 2 para Info, 3 para Operação,
+4 para Erro e 5 para Nenhum. Caso não informado para
+criação, assume 3 (Operação).
+=> Quantidade de segundos para esperar antes de iniciar o
+servidor VIAWEB após o processo VIAWEB Receiver iniciar,
+de 0 a 300 segundos. Caso não informado para criação,
+assume 0.
+=> Informe 1 para desabilitar o funcionamento do servidor,
+ou 0 para habilitá-lo. Caso não informado para criação,
+assume 0.
+"nickname": "str",
+"ipv4DDNS": 0/1,
+"ipv6DDNS": 0/1,
+"ipsFixos":[ "str", ...],
+=> Apelido identificador do servidor VIAWEB para registrar
+na plataforma AlarmeNET.com, de 2 a 10 caracteres
+alfanuméricos. Caso não seja informado ou caso o VIAWEB
+Receiver não esteja associado a uma conta de rede social
+Google ou Apple no AlarmeNET.com, um nickname
+automático e aleatório será gerado.
+=> Informe 1 para registrar o endereço dinâmico externo
+IPv4 no domínio DNS nickname.vw.seg.br , ou 0 para não
+registrar. Caso não informado para criação, assume 1.
+=> Informe 1 para registrar o endereço dinâmico IPv6 no
+domínio DNS nickname.vw.seg.br , ou 0 para não registrar.
+Caso não informado para criação, assume 0.
+=> Endereços IPs adicionais para registrar no domínio DNS
+nickname.vw.seg.br .
+"monitoramento": 0/1, => Habilita o envio de eventos deste servidor VIAWEB para
+o software de monitoramento: 0 não envia eventos, 1 envia
+eventos, incluindo os gerados enquanto o software de
+monitoramento estava desconectado. Caso não informado,
+Salvar Config. Servidor VIAWEB (Monitoramento para VIAWEB Receiver) 25
+"servidorDependente": 0/1,
+"minFaixaIsep": "str",
+"maxFaixaIsep": "str",
+"descarteEventos": num,
+"filtroEvento": num,
+"filtroRestauro": num
+} ]
+}
+o status atual não será alterado.
+=> Um valor 1 condiciona a execução deste servidor
+VIAWEB ao software de monitoramento, ativando-o quando
+o software conectar e desativando-o quando o software
+desconectar. Um valor 0 desativa esta funcionalidade,
+deixando o servidor livre e independente do software de
+monitoramento. Caso não informado para criação, assume
+0.
+=> Faixa de ID ISEPs cujos eventos são reportados para o
+software de monitoramento. Valores hexadecimais de 4
+dígitos cada. Caso não informado para criação, assume
+0000 e FFFF.
+=> Descarta eventos antigos, gerados há mais de num
+horas. Um valor 0 permite eventos gerados nos últimos 5
+minutos; -1 não descarta nenhum evento; valor máximo de
+9999 horas. Caso não informado para criação, assume -1.
+=> Valores decimais de 0 a 255 indicando quais tipos de
+evento são reportados ao monitoramento. O valor
+corresponde à somatória das seguintes parcelas:
++1: processa eventos de alarmes, códigos E1xx e R1xx.
++2: processa eventos de código E2xx e R2xx.
++4: processa eventos de falhas, códigos E3xx e R3xx.
++8: processa armes e desarmes, códigos E4xx e R4xx.
++16: processa eventos de exclusão, códigos E5xx e R5xx.
++32: processa eventos de teste, códigos E6xx e R6xx.
++64: processa eventos de código E7xx e R7xx.
++128: processa eventos de código E8xx e R8xx.
+Eventos com código fora de padrão serão sempre
+reportados. Caso não informado para criação, ambos
+assumem 255 (processa todos os eventos).
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+salvar configurações do servidor VIAWEB.
+Em caso de erro, será retornado um dos erros comuns ou um dos erros abaixo.
+Salvar Config. Servidor VIAWEB (Monitoramento para VIAWEB Receiver) 26
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 5,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 5: servidor VIAWEB não encontrado, retornado nas
+operações de alteração (0) ou exclusão (3).
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Servidor VIAWEB não encontrado: param1"
+"id": "str",
+"erro": 6,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 6: servidor VIAWEB já existente, retornado na operação de
+criação (1).
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Servidor VIAWEB existente: param1"
+"id": "str",
+"erro": 7,
+"param1": "str",
+"descricao": "str"
+} ]
+=> Campo identificando a operação que originou o erro.
+=> Erro 7: erro do sistema operacional ao salvar arquivo de
+configuração no servidor. Consulte a log do VIAWEB Receiver para
+mais detalhes sobre o erro.
+=> Mensagem de erro retornada pelo sistema operacional.
+=> "Erro interno do VIAWEB Receiver: param1"
+}
+LISTAR CLIENTES (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação de listar clientes fornece os dados dos clientes ID ISEP de um, vários ou
+todos os servidores VIAWEB configurados, identificando os servidores pelo nome ou pela porta
+TCP onde cada servidor atende os equipamentos, por padrão a 1733.
+O VIAWEB Receiver possibilita a criação ou alteração de clientes ID ISEP pela sua
+interface web, pela interface de integração e pelo protocolo Innload/Sincronismo. As operações
+de listar e salvar clientes ajudam o software de monitoramento a se certificar de que as
+configurações necessárias para sua execução não foram alteradas por outro software ou via
+interface web. Utilize-as à vontade para tornar o software mais resistentes a erros de instalação
+e operação.
+Listar Clientes (Monitoramento para VIAWEB Receiver) 27
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "listarClientes",
+"porta": num,
+"porta": [ num, ... ],
+"nome": "str",
+"nome": [ "str", ... ],
+"idISEP": [ "str", ... ]
+} ]
+}
+=> Campo de identificação da operação.
+=> Operação para listar os clientes dos servidores VIAWEB.
+=> Informe uma das portas TCP do servidor VIAWEB que se
+deseja informações, ou um array com uma lista de portas.
+Caso não seja informado nem este nem o campo "nome", a
+resposta listará clientes de todos os servidores VIAWEB
+cadastrados.
+=> Informe o nome do servidor VIAWEB que se deseja
+informações, ou um array com uma lista de nomes, sem
+diferenciar maiúsculas de minúsculas. Caso este campo seja
+informado junto com o campo "porta", a resposta listará
+clientes de todos os servidores VIAWEB que atendam um ou
+outro requisito.
+=> Informe os códigos ID ISEP de identificação dos clientes
+que se deseja informações, valores hexadecimais de 4
+dígitos. Caso não informado, todos os clientes serão listados.
+Em caso de sucesso, a resposta para esta operação segue abaixo. A quantidade de
+informações varia conforme o modelo e a versão de firmware do equipamento VIAWEB. Mas
+atenção: dependendo da quantidade de clientes, o tamanho da resposta pode ser significativa.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str",
+"viaweb": [ {
+"nome": "str",
+"porta": [ num, ... ],
+=> Campo de identificação da resposta: o valor é o mesmo
+da operação de listar clientes dos servidores VIAWEB.
+=> Array de servidores, um objeto para cada servidor
+VIAWEB solicitado.
+=> Nome de identificação do servidor VIAWEB.
+=> Portas TCP onde o servidor VIAWEB atende os
+equipamentos.
+"cliente": [ {
+"idISEP": "str",
+"online": 0/1,
+"fuso": num,
+=> Array de clientes, um objeto para cada cliente ISEP.
+=> Código ID ISEP identificando o cliente no Servidor
+VIAWEB, valor hexadecimal de 4 dígitos.
+=> Informa se o cliente está conectado por algum meio de
+comunicação, 1 para online, 0 para offline.
+=> Caso o equipamento esteja num fuso horário diferente
+Listar Clientes (Monitoramento para VIAWEB Receiver) 28
+do VIAWEB Receiver, este campo irá conter o fuso horário
+em minutos, de -720 a 840 (ou seja, de -12 horas a +14
+horas).
+"meio": [ {
+"numSerie": "str",
+"endereco": num,
+"modelo": "str",
+"via": "str",
+"simcard": num,
+"servidor": num,
+"ip": "str",
+"porta": num,
+"ping": num,
+"offlineTipico": num,
+"atraso": num,
+"protecao": 0/1/2,
+"offline": num,
+"online": num,
+=> Array de meios de comunicação conectados com este
+ID ISEP.
+=> Número de série do equipamento VIAWEB, valor
+hexadecimal de 8 dígitos.
+=> Endereço do equipamento no barramento.
+=> Modelo do equipamento VIAWEB.
+=> Via de comunicação: GPRS, ETH, 4G, CAT-M1 ou CATNB.
+=> Qual a bandeja do SIM Card utilizado, caso o meio seja
+GPRS, 4G, CAT-M1 ou CAT-NB.
+=> Número do servidor programado na sequência de
+comunicação, de 1 a 3.
+=> Endereço IP, caso esteja online.
+=> Porta TCP, caso esteja online.
+=> Tempo de ping em segundos, caso esteja online.
+=> Tempo médio de quedas de conexão dos últimos 7 dias.
+Informado apenas para meios de comunicação
+autorizados.
+=> Tempo fixo para atraso do envio do evento de offline
+deste meio de comunicação em segundos, ou -1 quando
+seguir os parâmetros configurados no servidor VIAWEB.
+=> Status da proteção contra excesso de eventos: 0 para
+desligado, 1 para ligado com alerta na interface web, 2
+para ligado mas sem alerta na interface. Caso não
+informado, a proteção contra excesso de eventos está
+desligada no VIAWEB Receiver.
+=> Data/hora da última vez que o equipamento ficou
+offline, em formato Unix Timestamp (número de segundos
+desde 01/01/1970 00:00:00 GMT).
+=> Data/hora da última vez que o equipamento entrou
+online, em formato Unix Timestamp (número de segundos
+desde 01/01/1970 00:00:00 GMT).
+"autorizacao": 0/1/2
+}, { ... } ],
+"senhas": [ {
+=> Status de autorização do meio de comunicação: 0 para
+bloqueado, 1 para autorizado, 2 para pendente
+(aguardando autorização).
+=> Array com senhas aleatórias geradas automaticamente
+pelos equipamentos (função 363 bit 3), caso o VIAWEB
+Listar Clientes (Monitoramento para VIAWEB Receiver) 29
+"usuario": 3/4/5,
+"senha": "str",
+"geracao": "str",
+"recepcao": num
+}, { ... } ]
+}, { ... } ]
+}, { ... } ]
+} ]
+}
+Receiver tenha capturado os eventos correspondentes.
+=> De qual usuário a senha se refere: usuários 003, 004 ou
+005.
+=> Senha numérica de 6 dígitos. Caso o equipamento use
+menos de 6, use apenas os primeiros dígitos.
+=> Dia, mês, hora e minuto da geração da senha,
+conforme reportado pelo equipamento VIAWEB, no
+formato “DD/MM HH:NN”. Dia da ocorrência de 01 a 31;
+mês de 01 a 12; hora de 00 a 23; minuto de 00 a 59.
+=> Data/hora de quando a senha foi recebida pelo
+VIAWEB Receiver, em formato Unix Timestamp (número
+de segundos desde 01/01/1970 00:00:00 GMT).
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+SALVAR CLIENTE (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para salvar cliente de um servidor VIAWEB permite criar, alterar ou excluir
+clientes ID ISEP de um servidor VIAWEB de dentro do VIAWEB Receiver.
+A operação também permite alterar ou excluir meios de comunicação de um cliente
+ISEP existente. Neste caso, além do ID ISEP, informe também o número de série, servidor e/ou
+via de comunicação para identificar o meio. Quando mais de um campo de filtro é informado,
+os meios afetados serão os que atendem todos os requisitos; caso nenhum campo de filtro
+seja informado, todos os meios serão alterados.
+Campos não informados não serão alterados em caso de alteração, ou serão
+preenchidos com valores default em caso de criação. Para exclusão do cliente, basta informar
+operação 3, o código ID ISEP do cliente e opcionalmente a porta ou nome para identificação do
+servidor VIAWEB: os demais campos serão ignorados.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "salvarCliente",
+"operacao": 0/1/2/3,
+=> Campo de identificação da operação.
+=> Operação para salvar cliente do servidor VIAWEB.
+=> Informe 0 para alterar o cliente mas retornar um erro caso
+ele não exista; 1 para criar o cliente mas retornar um erro
+caso ele já exista; 2 para criar o cliente se não existir ou
+Salvar Cliente (Monitoramento para VIAWEB Receiver) 30
+"porta": num,
+"nome": "str",
+"idISEP": "str",
+"novoISEP": "str",
+"fuso": num,
+alterar suas configurações caso ele exista; 3 para excluir o
+cliente. Caso o campo não seja informado, assume 0.
+=> Uma das portas TCP onde o servidor VIAWEB atende,
+usada para identificá-lo dentro do VIAWEB Receiver. Caso
+não seja informado, a procura será pelo campo "nome".
+=> Nome do servidor VIAWEB, usado para identificá-lo dentro
+do VIAWEB Receiver sem diferenciar maiúsculas de
+minúsculas. Caso seja informado junto com o campo "porta",
+a operação será feita no servidor VIAWEB que atenda ambos
+os requisitos.
+Caso nem "nome" nem "porta" sejam informados, a operação
+será feita com nome Servidor VIAWEB e porta 1733. Caso um
+servidor assim não exista, será procurado um servidor com
+porta 1733 e depois um com nome Servidor VIAWEB.
+=> Código ID ISEP identificando o cliente alvo da operação no
+Servidor VIAWEB, valor hexadecimal de 4 dígitos. Campo
+obrigatório.
+=> Em caso de alteração, qual o novo código ID ISEP do
+cliente, valor hexadecimal de 4 dígitos.
+=> Caso o equipamento esteja num fuso horário diferente do
+VIAWEB Receiver, informe este campo com o valor do fuso
+horário em minutos, de -720 a 840 (ou seja, de -12 horas a
++14 horas). Para que o horário do equipamento seja o mesmo
+do VIAWEB Receiver, informe o valor especial 9999. Caso
+não informado, o fuso não será alterado.
+"numSerie": "str",
+"servidor": num,
+"via": "str",
+"autorizacao": 0/1,
+"excluirMeio": 1,
+=> Campos de filtro para identificar meios de comunicação
+para alteração: número de série, número do servidor, via de
+comunicação (GPRS, ETH, 4G, CAT-M1, CAT-NB), ou uma
+combinação deles. Caso nenhum seja informado, todos os
+meios serão alterados.
+=> Informe 0 para bloquear o meio de comunicação ou 1 para
+autorizar. Caso não informado, o status da autorização não
+será alterado.
+=> Para excluir o meio de comunicação, informe 1 neste
+campo.
+"atraso": num, => Tempo fixo para atraso do envio do evento de offline deste
+meio de comunicação, de 0 a 86400 segundos, ou informe -1
+para seguir os parâmetros de configuração do servidor
+VIAWEB. Caso não informado, o tempo de atraso não será
+alterado.
+Salvar Cliente (Monitoramento para VIAWEB Receiver) 31
+"protecao": 0/1/2
+} ]
+}
+=> Para proteger o sistema contra excesso de eventos
+recebidos por este meio de comunicação, informe 1 para
+reduzir o envio de eventos com alerta na interface web, 2 para
+reduzir o envio de eventos silenciosamente ou 0 para desligar
+a proteção para este meio. Caso não informado, o status de
+proteção não será alterado.
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+salvar cliente do servidor VIAWEB.
+Em caso de erro, será retornado um dos erros comuns ou um dos erros abaixo.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 5,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 5: servidor VIAWEB não encontrado, retornado nas
+operações de alteração (0) ou exclusão (3).
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Servidor VIAWEB não encontrado: param1"
+"id": "str",
+"erro": 8,
+"param1": "str",
+"param2": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 8: cliente ISEP não encontrado, retornado nas operações de
+alteração (0) ou exclusão (3).
+=> Código ID ISEP procurado no Servidor VIAWEB.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Cliente ISEP param1 não encontrado no servidor VIAWEB
+param2"
+"id": "str",
+"erro": 9,
+=> Campo identificando a operação que originou o erro.
+=> Erro 9: cliente ISEP já existente, retornado na operação de
+Salvar Cliente (Monitoramento para VIAWEB Receiver) 32
+"param1": "str",
+"param2": "str",
+"descricao": "str"
+}, {
+criação (1).
+=> Código ID ISEP procurado no Servidor VIAWEB.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Cliente ISEP param1 existente no servidor VIAWEB param2"
+"id": "str",
+"erro": 10,
+"param1": "str",
+"param2": "str",
+"param3": "str",
+"descricao": "str"
+} ]
+=> Campo identificando a operação que originou o erro.
+=> Erro 10: meio de comunicação não encontrado, retornado nas
+operações com meio de comunicação.
+=> Código ID ISEP procurado no Servidor VIAWEB.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> Número de série procurado (caso tenha sido informado), seguido
+de "servidor" e o número do servidor procurado (caso tenha sido
+informado), seguido de "via" e a via de comunicação procurada
+(caso tenha sido informada).
+=> "Cliente ISEP param1 no servidor VIAWEB param2 não possui
+meio de comunicação param3"
+}
+EVENTO (VIAWEB RECEIVER PARA MONITORAMENTO)
+A operação de evento informa a ocorrência de um evento para o monitoramento. O
+evento pode ter sido gerado por um equipamento VIAWEB conectado em um servidor
+VIAWEB, ou pode ter sido gerado pelo próprio VIAWEB Receiver.
+Por padrão, os eventos são enviados individualmente e o próximo evento só é enviado
+após a recepção da resposta do evento anterior. Este comportamento pode ser alterado
+alterando o campo serializado na operação de Identificação.
+Caso as operações de informe de evento não sejam respondidas, por padrão elas são
+retransmitidas a cada 60 segundos até receber uma resposta confirmando o processamento.
+Caso se deseje alterar este tempo, bloquear a retransmissão ou retransmitir apenas após
+reconexão, configure o campo retransmite na operação de Identificação.
+VIAWEB Receiver trata os eventos de teste com prioridade mais baixa que os demais
+eventos. Os eventos de teste são aqueles cujo código ContactID estejam na faixa entre 1602 e
+160F, ou entre 3602 e 360F. Prioridade mais baixa significa que, quando o envio de eventos
+está serializado, os eventos de teste só são enviados caso todos os demais já tenham sido
+enviados e confirmados. Este comportamento é o padrão do sistema, mas pode ser alterado
+configurando o campo serializado na operação de Identificação.
+Evento (VIAWEB Receiver para Monitoramento) 33
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "evento",
+"nomeViaweb": "str",
+"portaViaweb": [
+ num, ... ],
+"recepcao": num,
+=> Campo de identificação da operação.
+=> Operação de informe de evento.
+=> Nome do servidor VIAWEB que recebeu o evento.
+=> Portas do servidor VIAWEB que recebeu o evento.
+=> Data/hora de quando o evento foi recebido pelo VIAWEB
+Receiver, em formato Unix Timestamp (número de segundos
+desde 01/01/1970 00:00:00 GMT).
+"dia": num,
+"mes": num,
+"hora": num,
+"minuto": num,
+"codigoEvento": "str",
+"eventoInterno": 1/2/3,
+"particao": num,
+"zonaUsuario": num,
+=> Dia, mês, hora e minuto da ocorrência do evento, conforme
+reportado pelo equipamento VIAWEB. Dia da ocorrência de 1
+a 31; mês de 1 a 12; hora de 0 a 23; minuto de 0 a 59.
+=> Código ContactID do evento. Valor hexadecimal de 4
+dígitos.
+=> Campo informado apenas quando o evento não foi gerado
+pelo equipamento VIAWEB: 1 quando o servidor VIAWEB,
+cliente ISEP ou equipamento entrou online; 2 quando o
+servidor, cliente ISEP ou equipamento ficou offline, 3 quando o
+equipamento VIAWEB necessita autorização para entrar
+online.
+=> Número da partição que originou o evento, de 0 a 8.
+Quando a partição é 0, o evento não tem partição. Campo
+informado apenas quando o evento foi gerado pelo
+equipamento VIAWEB.
+=> Número da zona ou usuário relacionado ao evento, de 0 a
+999. Quando a zona/usuário é 0, o evento não tem zona nem
+usuário. Campo informado apenas quando o evento foi gerado
+pelo equipamento VIAWEB.
+"contaCliente": "str",
+"supervisao": "str",
+"isep": "str",
+=> Conta do cliente (partição), valor hexadecimal de 4 dígitos.
+Campo informado apenas quando o evento foi gerado pelo
+equipamento VIAWEB.
+=> Conta de supervisão do servidor VIAWEB, valor
+hexadecimal de 4 dígitos. Campo informado apenas quando o
+evento foi gerado internamente pelo servidor VIAWEB.
+=> Código ID ISEP identificando o cliente no Servidor
+VIAWEB, valor hexadecimal de 4 dígitos. Campo informado
+Evento (VIAWEB Receiver para Monitoramento) 34
+"numSerie": "str",
+"modelo": "str",
+"meio": "str",
+"ip": "str"
+} ],
+apenas quando o evento tiver um cliente ISEP associado.
+=> Número de série do equipamento VIAWEB associado ao
+evento, ou "00000000" quando o equipamento for muito
+antigo. Valor hexadecimal de 8 dígitos. Campo informado
+apenas quando o evento tiver um cliente ISEP associado.
+=> Modelo do equipamento VIAWEB associado ao evento.
+Campo informado apenas quando o evento tiver um cliente
+ISEP associado.
+=> Meio de comunicação associado ao evento, como "GPRS",
+"ETH", "4G", "CAT-M1" ou "CAT-NB". Campo informado
+apenas quando o evento tiver um cliente ISEP e o meio puder
+ser identificado.
+=> Endereço IP do equipamento VIAWEB associado ao
+evento. Campo informado apenas quando o evento tiver um
+cliente ISEP associado.
+"eventosPendentes": num,
+"testesPendentes": num
+}
+=> Caso haja outros eventos no VIAWEB Receiver pendentes
+de envio para o software de monitoramento, este valor informa
+a quantidade de eventos aguardando na fila.
+=> Caso haja eventos de teste no VIAWEB Receiver
+pendentes de envio para o software de monitoramento, este
+valor informa a quantidade de eventos de teste aguardando na
+fila.
+Em caso de sucesso no processamento do evento, a resposta para esta operação é a
+seguinte.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+informe de evento.
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+EXECUTAR COMANDO (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação de executar comando permite enviar sequências de comandos para um
+equipamento VIAWEB conectado em um servidor VIAWEB.
+Os comandos podem ser informados de duas formas: usando o formato CampoDados
+Executar Comando (Monitoramento para VIAWEB Receiver) 35
+em hexadecimal ou um array de objetos JSON, um objeto para cada comando. O formato
+CampoDados apresenta maior diversidade de comandos e melhor controle de execução,
+porém sua implementação é mais complexa e requer o estudo de uma documentação adicional
+não incluída neste manual. O formato com objetos JSON é mais simples, porém gera
+mensagens mais longas.
+Ao chegar no servidor VIAWEB, os comandos entram na fila de execução exclusiva de
+cada cliente ISEP. Quando múltiplos equipamentos estiverem conectados com o mesmo ISEP,
+os comandos serão executados sequencialmente por apenas um dos equipamentos
+conectados, preferencialmente:
+• pelo equipamento da linha VW (placa azul ou verde), que possui maior capacidade de
+execução de comandos em comparação aos antigos VIAWEB Wireless, Ethernet e Plus;
+• pelo equipamento ou meio que estiver conectado via Ethernet, CAT, 4G ou GPRS, nesta
+ordem de preferência, em detrimento dos equipamentos antigos da linha VW que não
+informam como estão conectados;
+• pelo equipamento ou meio que se conectou mais recentemente.
+Dependendo da sequência de comandos executados, do meio de comunicação do
+equipamento e da quantidade de comandos na fila, o retorno pode levar alguns minutos.
+Comandos ainda na fila podem ser cancelados usando a operação de cancelar comando,
+descrita no próximo capítulo.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "executar",
+"porta": num,
+"nome": "str",
+"idISEP": "str",
+"timeout": num,
+=> Campo de identificação da operação.
+=> Operação para executar comando.
+=> Uma das portas TCP onde o servidor VIAWEB atende, usada
+para identificá-lo dentro do VIAWEB Receiver. Caso não seja
+informado, a procura será pelo campo "nome".
+=> Nome do servidor VIAWEB, usado para identificá-lo dentro do
+VIAWEB Receiver sem diferenciar maiúsculas de minúsculas. Caso
+seja informado junto com o campo "porta", a operação será feita no
+servidor VIAWEB que atenda ambos os requisitos.
+Caso nem "nome" nem "porta" sejam informados, a operação será
+feita com nome Servidor VIAWEB e porta 1733. Caso um servidor
+assim não exista, será procurado um servidor com porta 1733 e
+depois um com nome Servidor VIAWEB.
+=> Código ID ISEP identificando o cliente que irá executar o
+comando, valor hexadecimal de 4 dígitos. Campo obrigatório.
+=> Quantidade máxima de segundos para o comando esperar na
+fila e ser executado, de 1 a 120 segundos. Caso não informado,
+assume 120 segundos.
+Executar Comando (Monitoramento para VIAWEB Receiver) 36
+"comando": "str",
+"comando": [ {
+...
+} ]
+} ]
+}
+=> Sequência de comandos no formato CampoDados em
+hexadecimal, campo obrigatório. Para mais detalhes do formato
+CampoDados, consulte documentação adicional.
+=> Array com um ou mais comandos no formato objeto JSON. Os
+comandos possíveis de serem enviados e suas respostas estão
+descritos na sequência.
+Ao ser recebido pelo VIAWEB Receiver, a operação de executar comando é avaliada
+para verificar se pode ser executada, se os campos estão preenchidos corretamente e se o
+comando é válido. Neste estágio é possível que o VIAWEB Receiver retorne um dos erros
+comuns ou um dos erros abaixo.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 5,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 5: servidor VIAWEB não encontrado.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Servidor VIAWEB não encontrado: param1"
+"id": "str",
+"erro": 8,
+"param1": "str",
+"param2": "str",
+"descricao": "str"
+} ]
+=> Campo identificando a operação que originou o erro.
+=> Erro 8: cliente ISEP não encontrado.
+=> Código ID ISEP procurado no Servidor VIAWEB.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Cliente ISEP param1 não encontrado no servidor VIAWEB
+param2"
+}
+Caso a operação esteja correta, o comando é enviado para a fila de execução de cada
+cliente ISEP. Comandos enviados no formato CampoDados receberão respostas igualmente no
+formato CampoDados; comandos enviados no formato array de objetos JSON receberão
+respostas no formato de array de objetos JSON. Mas atenção: tanto o formato CampoDados
+quanto o formato JSON também podem apontar erros ocorridos durante a execução de um dos
+comandos da sequência ou de todos os comandos em geral.
+Executar Comando (Monitoramento para VIAWEB Receiver) 37
+O formato geral da resposta obedece o seguinte formato:
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str",
+"resposta": "str",
+=> Campo de identificação da resposta: o valor é o mesmo da
+operação de executar comando.
+=> Resposta de comando no formato CampoDados informado em
+hexadecimal.
+"resposta": [ {
+...
+} ]
+} ]
+}
+=> Array com uma ou mais respostas de comandos no formato
+JSON. As respostas possíveis de serem recebidas estão listadas
+abaixo junto com cada comando.
+A lista de comandos no formato JSON e cada uma de suas respostas segue abaixo.
+Estado das partições
+Comando e resposta Descrição dos campos
+... {
+"cmd": "particoes"
+} ...
+=> Comando para informar o estado das partições do sistema.
+... {
+"cmd": "particoes",
+"pos": num,
+"armado": 0/1,
+"disparado": 0/1
+} ...
+=> Resposta para o comando de informar o estado das
+partições. O equipamento irá devolver um objeto JSON para
+cada partição existente.
+=> Número da partição, de 1 a 8.
+=> 1 para partição armada, 0 para desarmada.
+=> 1 para partição disparada, 0 para não disparada.
+Estado das zonas
+Comando e resposta Descrição dos campos
+... {
+"cmd": "zonas"
+} ...
+=> Comando para informar o estado das zonas do sistema.
+... {
+"cmd": "zonas", => Resposta para o comando de informar estado das zonas. O
+Estado das zonas 38
+"pos": num,
+"aberta": 0/1,
+"disparada": 0/1,
+"inibida": 0/1,
+"temporizando": 0/1,
+"tamper": 0/1,
+"batlow": 0/1
+} ...
+equipamento irá devolver um objeto JSON para cada zona
+existente.
+=> Número da zona, de 1 a 999.
+=> 1 para zona aberta, 0 para zona fechada.
+=> 1 para zona disparada, 0 para não disparada.
+=> 1 para zona inibida, 0 para não inibida.
+=> 1 para zona temporizando.
+=> 1 para zona com falha de tamper ou fiação.
+=> 1 para zona com bateria baixa.
+Armar partições
+Comando e resposta Descrição dos campos
+... {
+"cmd": "armar",
+"password": "str",
+"forcado": 0/1,
+"inibir": [ num, ... ],
+"particoes": [ num, ... ]
+} ...
+=> Comando para armar uma ou mais partições do
+sistema.
+=> Senha de usuário com permissão para armar, de 4 a 6
+números. Campo obrigatório.
+=> Informe 1 para armar o sistema no modo forçado, ou 0
+para não armar com zona aberta. Caso não informado,
+assume 0.
+=> Lista de zonas que se deseja inibir antes de armar, de 1
+a 999. Caso não informado, nenhuma zona será inibida.
+=> Lista de partições que se deseja armar, de 1 a 8. Caso
+não seja informado, nenhuma partição será armada.
+... {
+"cmd": "armar",
+"resultado": num
+} ...
+=> Resposta para o comando de armar, indicando que o
+comando foi aceito. O equipamento pode levar alguns
+instantes até decidir se vai realmente armar ou não,
+dependendo da sua programação.
+=> 0 para comando executado com sucesso, 1 ou outro
+número para erro. Aguarde alguns instantes antes de
+enviar um comando "particoes" para verificar se realmente
+armou.
+Desarmar partições
+Comando e resposta Descrição dos campos
+Desarmar partições 39
+... {
+"cmd": "desarmar",
+"password": "str",
+"particoes": [ num, ... ]
+} ...
+=> Comando para desarmar uma ou mais partições do
+sistema.
+=> Senha de usuário com permissão para armar, de 4 a 6
+números. Campo obrigatório.
+=> Lista de partições que se deseja desarmar, de 1 a 8.
+Caso não seja informado, nenhuma partição será
+desarmada.
+... {
+"cmd": "desarmar",
+"resultado": num
+} ...
+=> Resposta para o comando de desarmar, indicando que
+o comando foi aceito. O equipamento pode levar alguns
+instantes até decidir se vai realmente desarmar ou não,
+dependendo da sua programação.
+=> 0 para comando executado com sucesso, 1 ou outro
+número para erro. Aguarde alguns instantes antes de
+enviar um comando "particoes" para verificar se realmente
+desarmou.
+Estado das PGMs
+Comando e resposta Descrição dos campos
+... {
+"cmd": "pgms",
+"pos": num,
+"max": num
+} ...
+=> Comando para informar o estado das PGMs do sistema.
+=> Número da primeira PGM a ser lida, de 1 a 255. Caso não
+informado, assume 1.
+=> Quantidade máxima de PGMs para ler, de 1 a 32. Caso não
+informado, assume 10.
+... {
+"cmd": "pgms",
+"pos": num,
+"acionado": 0/1,
+"tempo": "NN:SS"
+} ...
+=> Resposta para o comando de informar o estado das PGMs. O
+equipamento irá devolver um objeto JSON para cada PGM
+existente.
+=> Número da PGM, de 1 a 255.
+=> Estado da PGM, sendo 1 para acionada e 0 para desacionada.
+=> Tempo em que a PGM permanecerá acionada: NN minuto (00-
+59), SS segundo (00-59). Caso o estado da PGM seja permanente,
+será informado "00:00".
+Estado das PGMs 40
+Acionar PGM
+Comando e resposta Descrição dos campos
+... {
+"cmd": "acionar",
+"pgm": num,
+"tempo": num
+} ...
+=> Comando para acionar uma PGM.
+=> Número da PGM a ser acionada de 1 a 255, campo obrigatório.
+=> Por quantos segundos a PGM deve ser mantida acionada, de 0
+(indefinidamente) a 65535 segundos. Caso não informado, assume
+0.
+... {
+"cmd": "acionar",
+"resultado": num
+} ...
+=> Resposta para o comando de acionar PGM.
+=> 0 para comando executado com sucesso, 1 ou outro número
+para erro.
+Inverter PGM
+Comando e resposta Descrição dos campos
+... {
+"cmd": "inverter",
+"pgm": num,
+"tempo": num
+} ...
+=> Comando para inverter o estado de uma PGM. Obs: nem todos
+os equipamentos suportam inversão.
+=> Número da PGM a ser invertida de 1 a 255, campo obrigatório.
+=> Após quantos segundos a PGM deve voltar ao estado original,
+de 0 (permanecer invertida) a 65535 segundos. Caso não
+informado, assume 0.
+... {
+"cmd": "inverter",
+"resultado": num
+} ...
+=> Resposta para o comando de inverter PGM.
+=> 0 para comando executado com sucesso, 1 ou outro número
+para erro.
+Desacionar PGM
+Comando e resposta Descrição dos campos
+... {
+"cmd": "desacionar",
+"pgm": num
+} ...
+=> Comando para desacionar uma PGM.
+=> Número da PGM a ser desacionada de 1 a 255, campo
+obrigatório.
+... {
+"cmd": "desacionar", => Resposta para o comando de desacionar PGM.
+Desacionar PGM 41
+"resultado": num
+} ...
+=> 0 para comando executado com sucesso, 1 ou outro número
+para erro.
+Abrir porta
+Comando e resposta Descrição dos campos
+... {
+"cmd": "abrir",
+"password": num,
+"porta": num
+} ...
+=> Comando para abrir portas em uma controladora de Portaria
+Eletrônica.
+=> Senha de usuário com permissão para abertura da porta, de 4 a
+6 números. Campo obrigatório.
+=> Número da porta que se deseja abrir, de 0 a 255. Caso não seja
+informado ou seja informado 0, a controladora irá decidir qual porta
+abrir.
+... {
+"cmd": "abrir",
+"resultado": num,
+"usuario": num
+} ...
+=> Resposta para o comando de abrir portas.
+=> 0 comando executado com sucesso (porta aberta), 1 falha ao
+abrir porta por eclusa (a outra porta da eclusa está aberta), 2 porta
+fora do horário, 3 usuário fora do horário, 4 usuário sem acesso à
+porta, 5 não existe usuário para o código recebido (senha inválida),
+17 falha ao abrir porta entrada (tentativa de dupla entrada), 33 falha
+ao abrir porta saída (tentativa de dupla saída), 49 falha ao abrir
+porta autenticação dupla (necessário entrar com autenticação na
+outra porta), 253 periférico Controladora de Portaria inexistente, 254
+formato de comando inválido, 255 timeout (periférico não
+respondeu).
+=> Número do usuário que executou esse comando, de 3 a 999, ou
+não informado caso não haja um usuário relacionado à senha
+utilizada.
+Leitura do buffer de eventos
+Comando e resposta Descrição dos campos
+... {
+"cmd": "buffer",
+"pos": num,
+"max": num
+=> Comando para leitura do buffer de eventos.
+=> Posição do primeiro evento no buffer a ser lido, de 0 (o
+mais recente) a 2047 (o mais antigo). Caso não informado,
+assume 0.
+=> Quantidade máxima de eventos a receber, de 1 a 20. Caso
+Leitura do buffer de eventos 42
+} ...
+o equipamento possua menos eventos, ele enviará menos.
+Caso não informado, assume 10.
+... {
+"cmd": "buffer",
+"pos": num,
+"codigoEvento": "str",
+"particao": num,
+"zonaUsuario": num,
+"data": "DD/MM",
+"hora": "HH:NN"
+} ...
+=> Resposta para o comando de leitura do buffer de eventos.
+Caso vários eventos tenham sido solicitados, o equipamento
+irá devolver um objeto JSON por evento.
+=> Posição do evento no buffer, sendo 0 para o mais recente e
+2047 para o mais antigo.
+=> Código ContactID do evento. Valor hexadecimal de 4
+dígitos.
+=> Número da partição que originou o evento, de 0 a 8.
+Quando a partição é 0, o evento não tem partição.
+=> Número da zona ou usuário relacionado ao evento, de 0 a
+999. Quando a zona/usuário é 0, o evento não tem zona nem
+usuário.
+=> Data da ocorrência do evento: DD dia (01-31), MM mês
+(01-12).
+=> Hora da ocorrência do evento: HH hora (00-23), NN minuto
+(00-59).
+Envio de evento
+Comando e resposta Descrição dos campos
+... {
+"cmd": "evento",
+"codigoEvento": "str",
+"particao": num,
+"zonaUsuario": num,
+"disparar": [ num, ... ]
+} ...
+=> Comando para o equipamento enviar um evento
+específico.
+=> Código ContactID do evento (QEEE), valor hexadecimal
+de 4 dígitos sendo Q o qualifier e EEE o evento. Se o
+qualifier tiver valor 0, o evento não será enviado. Campo
+obrigatório.
+=> Número da partição que origina o evento, de 0 a 8.
+Quando a partição é 0, o evento não tem partição. Caso
+não informado, assume 0.
+=> Número da zona ou usuário relacionado ao evento, de 0
+a 999. Quando a zona/usuário é 0, o evento não tem zona
+nem usuário. Caso não informado, assume 0.
+=> Lista de partições para disparar, de 1 a 8. Caso não
+informado, nenhuma partição será disparada.
+... {
+Envio de evento 43
+"cmd": "evento",
+"resultado": num
+} ...
+=> Resposta para o comando de enviar evento.
+=> 0 para comando executado com sucesso, 1 ou outro
+número para erro.
+Limpar buffer e reconectar
+Comando e resposta Descrição dos campos
+... {
+"cmd": "reconectar"
+} ...
+=> Comando para o equipamento limpar os buffers de eventos e
+reiniciar todas as conexões com os servidores.
+... {
+"cmd": "reconectar",
+"resultado": num
+} ...
+=> Resposta para o comando de reconectar. É possível que o
+comando não seja respondido caso a reconexão desconecte o
+equipamento antes de transmitir a resposta.
+=> 0 para comando executado com sucesso, 1 ou outro número
+para erro.
+Ler senha de usuário
+Comando e resposta Descrição dos campos
+... {
+"cmd": "senha",
+"pos": num
+} ...
+=> Comando para ler uma senha criptografada do sistema.
+=> Posição do usuário, de 1 a 999. Campo obrigatório.
+... {
+"cmd": "senha",
+"pos": num,
+"resultado": num,
+"valor": "str"
+} ...
+=> Resposta para o comando de ler senhas criptografadas.
+=> Posição do usuário cadastrado, de 1 a 999.
+=> Resultado da operação: 0 para senha lida com sucesso, 1 para
+tipo ou formato não suportado. 2 para periférico não existe (ou não
+está respondendo), ou 3 para fora da faixa de senhas existentes.
+=> Senha criptografada em 32 dígitos hexadecimais. Campo
+retornado apenas em leituras com sucesso.
+Verificar senha de usuário
+Comando e resposta Descrição dos campos
+... {
+"cmd": "verificar", => Comando para verificar a senha de um usuário.
+Verificar senha de usuário 44
+"password": "str"
+} ...
+=> Senha de usuário para verificar, de 4 a 6 números.
+Campo obrigatório.
+... {
+"cmd": "verificar",
+"resultado": num,
+"pos": num,
+"particoes": [ num, ... ],
+"inibeZona": 0/1,
+"armaForcado": 0/1
+} ...
+=> Resposta para o comando de verificar a senha.
+=> 0 para comando executado com sucesso, 1 ou outro
+número para erro.
+=> Posição do usuário que possui essa senha, de 1 a
+999, ou -1 caso a senha não confira.
+=> Lista de partições onde a senha tem acesso, de 1 a 8.
+=> 1 caso a senha tem acesso para inibir zonas.
+=> 1 caso a senha possa armar em modo forçado.
+Cadastrar usuário
+Comando e resposta Descrição dos campos
+... {
+"cmd": "usuario",
+"pos": num,
+"valor": "str"
+} ...
+=> Comando para cadastrar um usuário no sistema.
+=> Posição do usuário, de 1 a 999. Campo obrigatório.
+=> Senha nova com 4, 5 ou 6 dígitos decimais, ou um bloco
+criptografado com 32 dígitos hexadecimais. Campo obrigatório.
+... {
+"cmd": "usuario",
+"pos": num,
+"resultado": num
+} ...
+=> Resposta para o comando de cadastrar usuários.
+=> Posição do usuário cadastrado, de 1 a 999.
+=> Resultado da operação: 0 para senha gravada com sucesso, 1
+para tipo ou formato não suportado. 2 para periférico não existe (ou
+não está respondendo), ou 3 para fora da faixa de senhas
+existentes.
+Listar periféricos do sistema
+Comando e resposta Descrição dos campos
+... {
+"cmd": "perif"
+} ...
+=> Comando para listar os periféricos do sistema.
+... {
+"cmd": "perif", => Resposta para o comando de listar periféricos. Caso vários
+Listar periféricos do sistema 45
+"status": num,
+"end": num,
+"modelo": "str",
+"versao_hw": "str",
+"versao_fw": "str",
+"serie": "str"
+} ...
+periféricos tenham sido encontrados, o equipamento irá devolver
+um objeto JSON por periférico.
+=> Estado do periférico: 0 para ok, 1 para periférico não
+suportado, 2 para periférico não existe (ou não está
+respondendo), 3 para periférico adicionado.
+=> Endereço do periférico no barramento.
+=> Modelo do equipamento VIAWEB.
+=> Versão de hardware do equipamento.
+=> Versão de firmware do equipamento.
+=> Número de série do equipamento.
+Ler programação de periférico
+Comando e resposta Descrição dos campos
+... {
+"cmd": "ler",
+"end": num,
+"funcao": num,
+"funcao": [ num, ... ]
+} ...
+=> Comando para leitura de programação de um periférico.
+=> Endereço do periférico do sistema a ser lido, de 1 a 254.
+Caso não informado, efetua a leitura do equipamento
+principal.
+=> Função ou lista de funções a ser lidas, de 0 a 9999, campo
+obrigatório.
+... {
+"cmd": "ler",
+"end": num,
+"funcao": num,
+"valor": "str"
+} ...
+=> Resposta para o comando de leitura de programação. O
+equipamento irá devolver um objeto JSON para cada função
+lida.
+=> Endereço do periférico onde a programação foi lida.
+=> Número da função lida.
+=> Valor lido da programação em formato hexadecimal. Caso
+a string esteja vazia, não foi possível ler a função.
+Programar periférico
+Comando e resposta Descrição dos campos
+... {
+"cmd": "prog",
+"end": num,
+=> Comando para programar uma função de um periférico.
+=> Endereço do periférico do sistema a ser programado, de 1 a 254.
+Caso não informado, programa o equipamento principal.
+Programar periférico 46
+"funcao": num,
+"valor": "str"
+} ...
+=> Número da função a ser programada, de 0 a 9999, campo
+obrigatório.
+=> Valor a ser programado em formato hexadecimal, campo
+obrigatório.
+... {
+"cmd": "prog",
+"end": num,
+"funcao": num,
+"resultado": num
+} ...
+=> Resposta para o comando de programar função.
+=> Endereço do periférico programado.
+=> Número da função programada.
+=> 0 comando executado com sucesso, 1 programação não
+suportada, 2 periférico não existe (ou não está respondendo)
+Recursos do sistema
+Comando e resposta Descrição dos campos
+... {
+"cmd": "recursos"
+} ...
+=> Comando para informar os recursos do sistema.
+... {
+"cmd": "recursos",
+"senhas": num,
+"zonas": num,
+"particoes": num,
+"pgms": num,
+"sirenes": num
+} ...
+=> Resposta para o comando de informar recursos.
+=> Quantidades totais de senhas, zonas, partições, PGMs e
+sirenes do sistema.
+Estado das sirenes
+Comando e resposta Descrição dos campos
+... {
+"cmd": "sirenes"
+} ...
+=> Comando para informar o estado das sirenes do sistema.
+... {
+"cmd": "sirenes",
+"pos": num,
+"acionado": 0/1,
+=> Resposta para o comando de informar o estado das sirenes. O
+equipamento irá devolver um objeto JSON para cada sirene
+existente.
+=> Número da sirene, de 1 a 255.
+=> 1 para sirene tocando, 0 para não acionada.
+Estado das sirenes 47
+"tensao": num,
+"tempo": "NN:SS",
+"sobrecarga": 0/1,
+"falha": 0/1
+} ...
+=> Tensão da sirene em Volts, número com ponto decimal.
+=> Tempo em que a sirene permanecerá tocando: NN minuto (00-
+59), SS segundo (00-59).
+=> 1 para sirene com problemas de sobrecarga.
+=> 1 para sirene com falha de supervisão.
+Estado das fontes
+Comando e resposta Descrição dos campos
+... {
+"cmd": "fontes"
+} ...
+=> Comando para informar o estado das fontes do sistema.
+... {
+"cmd": "fontes",
+"pos": num,
+"tensao": num,
+"falha_bat": 0/1,
+"falha_ac": 0/1,
+"falha_over": 0/1
+} ...
+=> Resposta para o comando de informar o estado das fontes. O
+equipamento irá devolver um objeto JSON para cada fonte
+existente.
+=> Número da fonte, de 1 a 255.
+=> Tensão da fonte em Volts, número com ponto decimal.
+=> 1 para bateria baixa ou ausente.
+=> 1 para falha de energia elétrica.
+=> 1 para sobrecarga no barramento.
+Horário do sistema
+Comando e resposta Descrição dos campos
+... {
+"cmd": "relogio"
+} ...
+=> Comando para retornar a hora do sistema.
+... {
+"cmd": "relogio",
+"data": "DD/MM/AAAA",
+"hora": "HH:NN:SS"
+} ...
+=> Resposta para o comando de retornar a hora do sistema.
+=> Data do sistema: DD dia (01-31), MM mês (01-12), AAAA
+ano.
+=> Hora do sistema: HH hora (00-23), NN minuto (00-59), SS
+segundo (00-59).
+Horário do sistema 48
+Ajuste de data e hora
+Comando e resposta Descrição dos campos
+... {
+"cmd": "data",
+"data": "DD/MM/AAAA",
+"hora": "HH:NN:SS"
+} ...
+=> Comando para ajustar o relógio do equipamento.
+=> Data a ser configurada: DD dia (01-31), MM mês (01-12),
+AAAA ano. Caso não informado, assume a data do servidor no
+momento da recepção do comando.
+=> Hora a ser configurada: HH hora (00-23), NN minuto (00-59),
+SS segundo (00-59). Caso não informado, assume a hora do
+servidor no momento da recepção do comando.
+... {
+"cmd": "data",
+"resultado": num
+} ...
+=> Resposta para o comando de ajuste de relógio.
+=> 0 para comando executado com sucesso, 1 ou outro número
+para erro.
+Erros durante a execução do comando
+Respostas de erro Descrição dos campos da resposta
+... {
+"cmd": "erro",
+"valor": num,
+"mensagem": "str"
+} ...
+=> Resposta de erro na execução de um comando.
+=> Valor numérico identificando o erro e uma mensagem descritiva.
+Os erros possíveis são:
+"Sem resposta" (0): equipamento VIAWEB não respondeu no
+tempo indicado
+"Não suportado" (1): equipamento VIAWEB respondeu que não tem
+suporte para executar o comando.
+"Não executado" (2): equipamento VIAWEB não conseguiu
+executar o comando.
+"Estouro do buffer de recepção" (16): Sobrecarga na memória de
+recepção de comandos.
+"Estouro do buffer de resposta" (32): Sobrecarga na memória de
+resposta de comandos, a resposta não coube no buffer.
+"Acesso negado" (49): Sem permissão para executar o comando.
+"Offline" (250): equipamento VIAWEB não está conectado.
+"Comando não suportado" (251): VIAWEB Receiver não enviou o
+comando porque entende que o equipamento VIAWEB não tem
+suporte para executá-lo.
+"Comando cancelado" (255): comando cancelado pelo software de
+monitoramento.
+Erros durante a execução do comando 49
+Caso o retorno seja no formato CampoDados, é necessário consultar documentação
+adicional para melhor compreensão. Como exemplo, segue abaixo uma lista dos erros mais
+típicos neste formato.
+Erros típicos de
+CampoDados
+Descrição do erro
+010000
+010001
+010002
+010601
+010B0001
+01FF01
+01FF02
+01FF04
+01FF06
+Sem resposta: equipamento VIAWEB não respondeu no tempo indicado.
+Não suportado: equipamento VIAWEB respondeu que não tem suporte para
+executar o comando.
+Não executado: equipamento VIAWEB não conseguiu executar o comando.
+Falha nos comandos tipo 06 (armar, desarmar, PGM, etc).
+Falha no comando de programação.
+Offline: equipamento VIAWEB não está conectado.
+Comando não suportado: VIAWEB Receiver não enviou o comando porque
+entende que o equipamento VIAWEB não tem suporte para executá-lo.
+Formato CampoDados inválido.
+Comando cancelado.
+CANCELAR COMANDO (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para cancelar comando permite cancelar comandos que possam ainda estar
+na fila de execução de comandos. Caso o comando já tenha sido enviado ao equipamento
+VIAWEB, ele não poderá mais ser cancelado.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "cancelarComando",
+"porta": num,
+"nome": "str",
+=> Campo de identificação da operação.
+=> Operação para cancelar comandos.
+=> Uma das portas TCP onde o servidor VIAWEB atende,
+usada para identificá-lo dentro do VIAWEB Receiver. Caso
+não seja informado, a procura será pelo campo "nome".
+=> Nome do servidor VIAWEB, usado para identificá-lo
+dentro do VIAWEB Receiver sem diferenciar maiúsculas de
+minúsculas. Caso seja informado junto com o campo
+"porta", a operação será feita no servidor VIAWEB que
+atenda ambos os requisitos.
+Caso nem "nome" nem "porta" sejam informados, a
+operação será feita com nome Servidor VIAWEB e porta
+1733. Caso um servidor assim não exista, será procurado
+um servidor com porta 1733 e depois um com nome
+Cancelar Comando (Monitoramento para VIAWEB Receiver) 50
+"idISEP": "str",
+"idComando": "str"
+} ]
+}
+Servidor VIAWEB.
+=> Código ID ISEP identificando o cliente onde o comando
+deve ser cancelado. Campo obrigatório.
+=> ID da operação de executar comando a ser cancelada.
+Caso não seja informado, será cancelado o comando que
+não tenha ID da operação.
+Em caso de sucesso, a resposta para esta operação segue abaixo. Ao ser cancelada, a
+operação original de executar comando também retorna uma resposta em formato
+CampoDados com 01FF06 (Comando cancelado).
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+cancelar comando.
+Em caso de erro, será retornado um dos erros comuns ou um dos erros abaixo.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 5,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 5: servidor VIAWEB não encontrado.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Servidor VIAWEB não encontrado: param1"
+"id": "str",
+"erro": 8,
+"param1": "str",
+"param2": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 8: cliente ISEP não encontrado.
+=> Código ID ISEP procurado no Servidor VIAWEB.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Cliente ISEP param1 não encontrado no servidor VIAWEB
+param2"
+"id": "str",
+"erro": 11,
+=> Campo identificando a operação que originou o erro.
+=> Erro 11: comando não encontrado na fila de execução.
+Cancelar Comando (Monitoramento para VIAWEB Receiver) 51
+"param1": "str",
+"descricao": "str"
+} ]
+=> ID da operação de executar comando procurada.
+=> "Comando não encontrado: param1"
+}
+LER CONFIG. SERVIDORES INNLOAD (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para ler a configuração dos servidores Innload solicita ao VIAWEB Receiver
+os dados de um, vários ou todos os servidores Innload/Sincronismo configurados,
+identificando-os pelo nome ou pela porta TCP onde cada servidor atende os softwares Innload,
+por padrão a 1800.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "lerInnload",
+"porta": num,
+"porta": [ num, ... ],
+"nome": "str",
+"nome": [ "str", ... ]
+} ]
+}
+=> Campo de identificação da operação.
+=> Operação para ler a configuração dos servidores Innload.
+=> Informe uma das portas TCP do servidor Innload que se
+deseja informações, ou um array com uma lista de portas. Caso
+não seja informado nem este nem o campo "nome", a resposta
+listará todos os servidores Innload cadastrados.
+=> Informe o nome do servidor Innload que se deseja
+informações, ou um array com uma lista de nomes, sem
+diferenciar maiúsculas de minúsculas. Caso este campo seja
+informado junto com o campo "porta", a resposta listará todos
+os servidores Innload que atendam um ou outro requisito.
+Em caso de sucesso, a resposta para esta operação segue abaixo. Maiores informações
+sobre cada campo podem ser obtidas no Manual de Operação e Configuração do VIAWEB
+Receiver.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str",
+"innload": [ {
+"nome": "str",
+=> Campo de identificação da resposta: o valor é o mesmo
+da operação de leitura de configuração dos servidores
+Innload.
+=> Array de configurações, um objeto para cada servidor
+Innload solicitado.
+=> Nome de identificação do servidor Innload.
+Ler Config. Servidores Innload (Monitoramento para VIAWEB Receiver) 52
+"porta": [ num, ... ],
+"portaSincronismo": [
+ num, ... ],
+"ip": [ "str", ... ],
+"localhost": 0/1,
+"localnet": 0/1,
+"all": 0/1,
+"autorizado": [
+ "str", ... ],
+=> Portas TCP onde o servidor Innload atende os
+softwares via protocolo Innload.
+=> Portas TCP onde o servidor Innload atende os
+softwares via protocolo Sincronismo.
+=> Endereços IPs onde o servidor Innload atende. Um
+valor 0.0.0.0 indica todos os endereços IPv4 configurados
+no computador, e um valor :: indica todos os endereços
+IPv6 configurados.
+=> 1 autoriza o próprio servidor do VIAWEB Receiver a
+acessar o servidor Innload.
+=> 1 autoriza todos os computadores das redes locais a
+acessar o servidor Innload.
+=> 1 autoriza qualquer computador a acessar o servidor
+Innload (inseguro).
+=> Lista de IPs e/ou redes autorizados a acessar o servidor
+Innload.
+"senha": "str",
+"liberarCadastro": 0/1,
+"descarteSoftwares": num,
+"nivelLog": num,
+"atrasoInicial": num,
+"desabilitado": 0/1,
+"nomeViaweb": "str",
+"portaViaweb": [
+ num, ... ],
+"innloadDependente": 0/1
+}, { ... } ],
+"ipsLocais4": [
+ "str", ... ],
+=> Senha de acesso ao servidor Innload/Sincronismo.
+=> 1 libera o cadastro de clientes ISEP a todos os
+softwares Innload, 0 permite apenas aos softwares de
+Cadastro.
+=> Descarta softwares Innload desconectados há mais de
+X horas para evitar guardar eventos em excesso.
+=> Nível de mensagens para registrar em arquivo de log: 0
+para Network, 1 para Debug, 2 para Info, 3 para Operação,
+4 para Erro e 5 para Nenhum.
+=> Quantidade de segundos para esperar antes de iniciar o
+servidor Innload após o processo VIAWEB Receiver iniciar.
+=> Um valor 1 neste campo indica que o servidor está
+desabilitado, impedido de funcionar.
+=> Dados para identificação do servidor VIAWEB atrelado
+a este servidor Innload.
+=> Um valor 1 condiciona a execução deste servidor
+Innload ao servidor VIAWEB, ativando-o quando servidor
+VIAWEB entrar online e desativando-o quando o servidor
+VIAWEB ficar offline. Um valor 0 desativa esta
+funcionalidade, deixando o servidor livre e independente do
+servidor VIAWEB.
+=> Lista com todos os endereços IPv4 configurados no
+computador onde o VIAWEB Receiver é executado.
+Ler Config. Servidores Innload (Monitoramento para VIAWEB Receiver) 53
+"ipsLocais6": [
+ "str", ... ]
+} ]
+}
+=> Lista com todos os endereços IPv6 configurados no
+computador onde o VIAWEB Receiver é executado.
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+SALVAR CONFIG. SERVIDORES INNLOAD (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para salvar configurações de um servidor Innload permite criar, alterar ou
+excluir um servidor Innload de dentro do VIAWEB Receiver.
+Campos não informados não serão alterados em caso de alteração, ou serão
+preenchidos com valores default em caso de criação. Para exclusão, basta informar operação
+3 e a porta ou nome para identificação: os demais campos serão ignorados.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "salvarInnload",
+"operacao": 0/1/2/3,
+"porta": num,
+"nome": "str",
+=> Campo de identificação da operação.
+=> Operação para salvar configurações do servidor Innload.
+=> Informe 0 para alterar o servidor Innload mas retornar um
+erro caso ele não exista; 1 para criar o servidor Innload mas
+retornar um erro caso ele já exista; 2 para criar o servidor se
+não existir ou alterar suas configurações caso ele exista; 3
+para excluir o servidor Innload. Caso o campo não seja
+informado, assume 0.
+=> Uma das portas TCP onde o servidor Innload atende,
+usada para identificá-lo dentro do VIAWEB Receiver. Caso
+não seja informado nem este nem o campo "nome", a
+operação será feita com nome Servidor Innload e porta 1800.
+=> Nome do servidor Innload, usado para identificá-lo dentro
+do VIAWEB Receiver sem diferenciar maiúsculas de
+minúsculas. Caso seja informado junto com o campo "porta",
+a operação será feita no servidor Innload que atenda ambos
+os requisitos.
+"novaPorta": [
+ num, ... ],
+"novaPorta": num,
+"novoNome": "str",
+=> Em caso de alteração, quais as novas portas TCP onde o
+servidor Innload deve atender os softwares via protocolo
+Innload. Caso seja apenas uma, pode-se informar como
+array ou como número simples.
+=> Em caso de alteração, qual o novo nome de identificação
+Salvar Config. Servidores Innload (Monitoramento para VIAWEB Receiver) 54
+"portaSincronismo": [
+ num, ... ],
+"portaSincronismo": num,
+"ip": [ "str", ... ],
+"localhost": 0/1,
+"localnet": 0/1,
+"all": 0/1,
+"autorizado": [
+ "str", ... ],
+do servidor Innload. Obs: o sistema não diferencia
+maiúsculas de minúsculas.
+=> Portas TCP onde o servidor Innload deve atender os
+softwares via protocolo Sincronismo. Caso seja apenas uma,
+pode-se informar como array ou como número simples.
+=> Endereços IPs onde o servidor Innload deve atender.
+Informe 0.0.0.0 para todos os endereços IPv4 configurados
+no computador, e/ou :: para todos os endereços IPv6. Caso
+não informado para criação, assume [ "0.0.0.0", "::" ].
+=> Informe 1 para autorizar o próprio servidor do VIAWEB
+Receiver a acessar o servidor Innload, ou 0 para bloquear.
+Caso não informado para criação, assume 1.
+=> Informe 1 para autorizar todos os computadores das
+redes locais a acessar o servidor Innload, ou 0 para bloquear.
+Caso não informado para criação, assume 1.
+=> Informe 1 para autorizar qualquer computador a acessar o
+servidor Innload (inseguro), ou 0 para bloquear. Caso não
+informado para criação, assume 0.
+=> Lista de IPs e/ou redes autorizados a acessar o servidor
+Innload. Caso não informado para criação, deixa a lista em
+branco.
+"senha": "str",
+"liberarCadastro": 0/1,
+"descarteSoftwares": num,
+"nivelLog": num,
+"atrasoInicial": num,
+=> Senha de acesso ao servidor Innload/Sincronismo. Caso
+não informado para criação, assume a mesma senha da
+interface web.
+=> Informe 1 para liberar o cadastro de clientes ISEP a todos
+os softwares Innload, ou 0 para permiti-lo apenas aos
+softwares de Cadastro. Caso não informado para criação,
+assume 0.
+=> Descarta softwares Innload desconectados após num
+horas para evitar guardar eventos em excesso, de 0 a 9999
+horas. Caso não informado para criação, assume 168 horas
+(1 semana).
+=> Nível de mensagens para registrar em arquivo de log: 0
+para Network, 1 para Debug, 2 para Info, 3 para Operação, 4
+para Erro e 5 para Nenhum. Caso não informado para
+criação, assume 3 (Operação).
+=> Quantidade de segundos para esperar antes de iniciar o
+servidor Innload após o processo VIAWEB Receiver iniciar,
+de 0 a 300 segundos. Caso não informado para criação,
+assume 0.
+Salvar Config. Servidores Innload (Monitoramento para VIAWEB Receiver) 55
+"desabilitado": 0/1,
+"nomeViaweb": "str",
+"portaViaweb": num,
+"innloadDependente": 0/1
+} ]
+}
+=> Informe 1 para desabilitar o funcionamento do servidor, ou
+0 para habilitá-lo. Caso não informado para criação, assume
+0.
+=> Dados para identificação de um servidor VIAWEB para
+atrelar ao servidor Innload. Informe um ou outro campo para
+procurar por nome ou porta; caso os dois campos sejam
+informados, será atrelado o servidor VIAWEB que atenda
+ambos os requisitos. Caso nenhum dos campos seja
+informado, o Innload será criado com o servidor VIAWEB de
+nome Servidor VIAWEB e porta 1733, mas se o Innload já
+existir ele não será alterado.
+=> Um valor 1 condiciona a execução deste servidor Innload
+ao servidor VIAWEB, ativando-o quando o servidor VIAWEB
+entrar online e desativando-o quando o servidor VIAWEB
+ficar offline. Um valor 0 desativa esta funcionalidade,
+deixando o servidor livre e independente do servidor
+VIAWEB. Caso não informado para criação, assume 0.
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+salvar configurações do servidor Innload.
+Em caso de erro, será retornado um dos erros comuns ou um dos erros abaixo.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 5,
+"param1": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 5: servidor VIAWEB não encontrado.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Servidor VIAWEB não encontrado: param1"
+Salvar Config. Servidores Innload (Monitoramento para VIAWEB Receiver) 56
+"id": "str",
+"erro": 8,
+"param1": "str",
+"param2": "str",
+"descricao": "str"
+}, {
+=> Campo identificando a operação que originou o erro.
+=> Erro 8: cliente ISEP não encontrado.
+=> Código ID ISEP procurado no Servidor VIAWEB.
+=> Nome do servidor VIAWEB procurado (caso tenha sido
+informado), seguido de "porta" e o número da porta procurada (caso
+tenha sido informada).
+=> "Cliente ISEP param1 não encontrado no servidor VIAWEB
+param2"
+"id": "str",
+"erro": 11,
+"param1": "str",
+"descricao": "str"
+} ]
+=> Campo identificando a operação que originou o erro.
+=> Erro 11: comando não encontrado na fila de execução.
+=> ID da operação de executar comando procurada.
+=> "Comando não encontrado: param1"
+}
+LER CONFIG. INTERFACE WEB (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para ler a configuração da interface web solicita ao VIAWEB Receiver os
+dados do servidor HTTP que fornece o serviço de acesso à interface web.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "lerWeb"
+} ]
+}
+=> Campo de identificação da operação.
+=> Operação para ler a configuração da interface web.
+Em caso de sucesso, a resposta para esta operação segue abaixo. Maiores informações
+sobre cada campo podem ser obtidas no Manual de Operação e Configuração do VIAWEB
+Receiver.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str",
+"porta": [ num, ... ],
+"ip": [ "str", ... ],
+=> Campo de identificação da resposta: o valor é o mesmo
+da operação de leitura de configuração da interface web.
+=> Portas TCP onde a interface web pode ser acessada.
+=> Endereços IPs onde a interface web pode ser
+acessada. Um valor 0.0.0.0 indica todos os endereços IPv4
+Ler Config. Interface Web (Monitoramento para VIAWEB Receiver) 57
+"localhost": 0/1,
+"localnet": 0/1,
+"all": 0/1,
+"autorizado": [
+ "str", ... ],
+configurados no computador, e um valor :: indica todos os
+endereços IPv6 configurados.
+=> 1 autoriza o próprio servidor do VIAWEB Receiver a
+acessar a interface web.
+=> 1 autoriza todos os computadores das redes locais a
+acessar a interface web.
+=> 1 autoriza qualquer computador a acessar a interface
+web (inseguro).
+=> Lista de IPs e/ou redes autorizados a acessar a
+interface web.
+"senhaAdmin": "str",
+"senhaLeitura": "str",
+"inatividade": num,
+"nivelLog": num,
+"atrasoInicial": num,
+"desabilitado": 0/1,
+"ipsLocais4": [
+ "str", ... ],
+"ipsLocais6": [
+ "str", ... ]
+} ]
+}
+=> Senha de acesso completo à interface web com
+permissão para realizar alterações.
+=> Senha de acesso com permissão apenas para
+visualizar as informações. Caso a senha de somente
+leitura seja igual à senha do administrador, o acesso
+somente leitura estará desabilitado.
+=> Tempo de inatividade da interface web, em minutos.
+Decorrido esse tempo, o usuário é forçado a digitar a
+senha novamente.
+=> Nível de mensagens para registrar em arquivo de log: 0
+para Network, 1 para Debug, 2 para Info, 3 para Operação,
+4 para Erro e 5 para Nenhum.
+=> Quantidade de segundos para esperar antes de iniciar a
+interface web após o processo VIAWEB Receiver iniciar.
+=> Um valor 1 neste campo indica que a interface web está
+desabilitada (servidor impedido de funcionar).
+=> Lista com todos os endereços IPv4 configurados no
+computador onde o VIAWEB Receiver é executado.
+=> Lista com todos os endereços IPv6 configurados no
+computador onde o VIAWEB Receiver é executado.
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+SALVAR CONFIG. INTERFACE WEB (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para salvar configurações da interface web permite alterar os dados do
+servidor HTTP que fornece o serviço de acesso à interface web. Lembrando sempre que
+campos não informados não serão alterados.
+Salvar Config. Interface Web (Monitoramento para VIAWEB Receiver) 58
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "salvarWeb",
+=> Campo de identificação da operação.
+=> Operação para salvar configurações da interface web.
+"porta": [ num, ... ],
+"porta": num,
+"ip": [ "str", ... ],
+"localhost": 0/1,
+"localnet": 0/1,
+"all": 0/1,
+"autorizado": [
+ "str", ... ],
+=> Quais as novas portas TCP onde a interface web deve ser
+acessada. Caso seja apenas uma, pode-se informar como
+array ou como número simples.
+=> Endereços IPs onde a interface web deve ser acessada.
+Informe 0.0.0.0 para todos os endereços IPv4 configurados
+no computador, e/ou :: para todos os endereços IPv6.
+=> Informe 1 para autorizar o próprio servidor do VIAWEB
+Receiver a acessar a interface web, ou 0 para bloquear.
+=> Informe 1 para autorizar todos os computadores das
+redes locais a acessar a interface web, ou 0 para bloquear.
+=> Informe 1 para autorizar qualquer computador a acessar a
+interface web (inseguro), ou 0 para bloquear.
+=> Lista de IPs e/ou redes autorizados a acessar a interface
+web.
+"senhaAdmin": "str",
+"senhaLeitura": "str",
+"inatividade": num,
+"nivelLog": num,
+"atrasoInicial": num,
+"desabilitado": 0/1
+} ]
+}
+=> Nova senha de acesso completo à interface web com
+permissão para realizar alterações.
+=> Nova senha de acesso com permissão apenas para
+visualizar as informações. Caso a senha de somente leitura
+seja igual à senha do administrador, o acesso somente
+leitura estará desabilitado.
+=> Tempo de inatividade da interface web, de 1 a 1440
+minutos. Decorrido esse tempo, o usuário é forçado a digitar
+a senha novamente.
+=> Nível de mensagens para registrar em arquivo de log: 0
+para Network, 1 para Debug, 2 para Info, 3 para Operação, 4
+para Erro e 5 para Nenhum.
+=> Quantidade de segundos para esperar antes de iniciar a
+interface web após o processo VIAWEB Receiver iniciar, de 0
+a 300 segundos.
+=> Informe 1 para desabilitar a interface web, ou 0 para
+habilitá-la.
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Salvar Config. Interface Web (Monitoramento para VIAWEB Receiver) 59
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+salvar configurações da interface web.
+Em caso de erro, será retornado um dos erros comuns ou um dos erros abaixo.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 7,
+"param1": "str",
+"descricao": "str"
+} ]
+=> Campo identificando a operação que originou o erro.
+=> Erro 7: erro do sistema operacional ao salvar arquivo de
+configuração no servidor. Consulte a log do VIAWEB Receiver para
+mais detalhes sobre o erro.
+=> Mensagem de erro retornada pelo sistema operacional.
+=> "Erro interno do VIAWEB Receiver: param1"
+}
+LER CONFIGURAÇÕES GERAIS (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para ler as configurações gerais solicita ao VIAWEB Receiver informações
+como códigos de eventos internos e dados de funcionamento do sistema.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "lerGeral"
+} ]
+}
+=> Campo de identificação da operação.
+=> Operação para ler as configurações gerais do sistema.
+Em caso de sucesso, a resposta para esta operação segue abaixo. Maiores informações
+sobre cada campo podem ser obtidas no Manual de Operação e Configuração do VIAWEB
+Receiver.
+Resposta Descrição dos campos da resposta
+{
+Ler Configurações Gerais (Monitoramento para VIAWEB Receiver) 60
+"resp": [ {
+"id": "str",
+"comentarios": 0/1,
+"nivelLogGeral": num,
+"dividirLog": num,
+"apagarLogs": num,
+"usarAcceptEx": -1/0/1,
+"nivelLogAlarmeNETcom": num,
+=> Campo de identificação da resposta: o valor é o
+mesmo da operação de leitura de configurações gerais.
+=> 1 salva o arquivo Config com comentários
+explicativos, 0 salva apenas as configurações.
+=> Nível de mensagens para registrar as atividades de
+controle geral em arquivo de log: 0 para Network, 1 para
+Debug, 2 para Info, 3 para Operação, 4 para Erro e 5
+para Nenhum.
+=> Divide o arquivo de log a cada X horas. Um valor 0
+gera um único arquivo por dia.
+=> Apaga os arquivos de log a cada X dias. Um valor 0
+mantém os arquivos por tempo indeterminado.
+=> 0 orienta o sistema operacional Windows a utilizar o
+método tradicional WSAAccept() para aceite de
+conexões TCP/IP. 1 autoriza o Windows a usar o método
+AcceptEx(), que possui performance melhor porém está
+sujeito à interferência de softwares de terceiros. O
+sistema operacional Linux retorna sempre -1 .
+=> Nível de mensagens para registrar as atividades com
+o AlarmeNET.com em arquivo de log: 0 para Network, 1
+para Debug, 2 para Info, 3 para Operação, 4 para Erro e
+5 para Nenhum.
+"codEventoViawebIniciar":
+ "str",
+"codEventoViawebParar":
+ "str",
+"codEventoClienteAutorizar":
+ "str",
+"codEventoClienteOnline":
+ "str",
+"codEventoClienteOffline":
+ "str",
+"codEventoMeioOnline":
+ "str",
+"codEventoMeioOffline":
+=> Código do evento interno gerado quando um servidor
+VIAWEB é iniciado, em branco quando desabilitado.
+=> Código do evento interno gerado quando um servidor
+VIAWEB para, em branco quando desabilitado.
+=> Código do evento interno gerado quando um novo
+equipamento solicita autorização para se conectar, em
+branco quando desabilitado.
+=> Código do evento interno gerado quando um
+equipamento entra online em uma conta ID ISEP
+anteriormente offline, em branco quando desabilitado.
+=> Código do evento interno gerado quando o último
+equipamento online de uma conta ID ISEP ficar offline,
+em branco quando desabilitado.
+=> Código do evento interno gerado quando qualquer
+equipamento entra online, em branco quando
+desabilitado.
+=> Código do evento interno gerado quando qualquer
+Ler Configurações Gerais (Monitoramento para VIAWEB Receiver) 61
+ "str"
+} ]
+}
+equipamento ficar offline, em branco quando
+desabilitado.
+Em caso de erro, um dos erros comuns será retornado. Nenhum erro específico está
+previsto.
+SALVAR CONFIGURAÇÕES GERAIS (MONITORAMENTO PARA VIAWEB RECEIVER)
+A operação para salvar configurações gerais permite alterar os dados de funcionamento
+do VIAWEB Receiver. Lembrando sempre que campos não informados não serão alterados.
+Operação Descrição dos campos da operação
+{
+"oper": [ {
+"id": "str",
+"acao": "salvarGeral",
+=> Campo de identificação da operação.
+=> Operação para salvar configurações gerais.
+"comentarios": 0/1,
+"nivelLogGeral": num,
+"dividirLog": num,
+"apagarLogs": num,
+"usarAcceptEx": -1/0/1,
+"nivelLogAlarmeNETcom": num,
+=> Informe 1 para salvas o arquivo Config com
+comentários explicativos, 0 para salvar apenas as
+configurações.
+=> Nível de mensagens para registrar as atividades de
+controle geral em arquivo de log: 0 para Network, 1 para
+Debug, 2 para Info, 3 para Operação, 4 para Erro e 5
+para Nenhum.
+=> Divide o arquivo de log a cada X horas. Informe 0
+para gerar um único arquivo por dia.
+=> Apaga os arquivos de log a cada X dias. Informe 0
+para manter os arquivos por tempo indeterminado.
+=> Informe 0 para orientar o sistema operacional
+Windows a utilizar o método tradicional WSAAccept()
+para aceite de conexões TCP/IP, ou 1 para autorizá-lo a
+usar o método AcceptEx(), que possui performance
+melhor porém está sujeito à interferência de softwares de
+terceiros. Campo ignorado caso o VIAWEB Receiver
+esteja rodando num sistema operacional Linux.
+=> Nível de mensagens para registrar as atividades com
+o AlarmeNET.com em arquivo de log: 0 para Network, 1
+para Debug, 2 para Info, 3 para Operação, 4 para Erro e
+5 para Nenhum.
+"codEventoViawebIniciar":
+ "str",
+=> Código do evento interno gerado quando um servidor
+VIAWEB é iniciado, valor hexadecimal de 4 dígitos. Deixe
+Salvar Configurações Gerais (Monitoramento para VIAWEB Receiver) 62
+"codEventoViawebParar":
+ "str",
+"codEventoClienteAutorizar":
+ "str",
+"codEventoClienteOnline":
+ "str",
+"codEventoClienteOffline":
+ "str",
+"codEventoMeioOnline":
+ "str",
+"codEventoMeioOffline":
+ "str"
+} ]
+}
+em branco para desabilitar.
+=> Código do evento interno gerado quando um servidor
+VIAWEB para, valor hexadecimal de 4 dígitos. Deixe em
+branco para desabilitar.
+=> Código do evento interno gerado quando um novo
+equipamento solicita autorização para se conectar, valor
+hexadecimal de 4 dígitos. Deixe em branco para
+desabilitar.
+=> Código do evento interno gerado quando um
+equipamento entra online em uma conta ID ISEP
+anteriormente offline, valor hexadecimal de 4 dígitos.
+Deixe em branco para desabilitar.
+=> Código do evento interno gerado quando o último
+equipamento online de uma conta ID ISEP ficar offline,
+valor hexadecimal de 4 dígitos. Deixe em branco para
+desabilitar.
+=> Código do evento interno gerado quando qualquer
+equipamento entra online, valor hexadecimal de 4 dígitos.
+Deixe em branco para desabilitar.
+=> Código do evento interno gerado quando qualquer
+equipamento ficar offline, valor hexadecimal de 4 dígitos.
+Deixe em branco para desabilitar.
+Em caso de sucesso, a resposta para esta operação é a seguinte.
+Resposta Descrição dos campos da resposta
+{
+"resp": [ {
+"id": "str"
+} ]
+}
+=> Campo de identificação da resposta: o valor é o mesmo da operação de
+salvar configurações gerais.
+Em caso de erro, será retornado um dos erros comuns ou um dos erros abaixo.
+Respostas de erro Descrição dos campos
+{
+"resp": [ {
+"id": "str",
+"erro": 7,
+=> Campo identificando a operação que originou o erro.
+=> Erro 7: erro do sistema operacional ao salvar arquivo de
+Salvar Configurações Gerais (Monitoramento para VIAWEB Receiver) 63
+"param1": "str",
+"descricao": "str"
+} ]
+configuração no servidor. Consulte a log do VIAWEB Receiver para
+mais detalhes sobre o erro.
+=> Mensagem de erro retornada pelo sistema operacional.
+=> "Erro interno do VIAWEB Receiver: param1"
+}
+T E S T E S E D E P U R A Ç Ã O
+Para ajudar na resolução de problemas, o VIAWEB Receiver disponibiliza
+funcionalidades para monitoramento e registro de processos em arquivo de log. Além disso, o
+kit de desenvolvimento traz softwares adicionais que podem ajudar na depuração do protocolo,
+bem como exemplos de códigos fontes em diferentes linguagens de programação.
+MONITORAMENTO DO VIAWEB RECEIVER EM TEMPO REAL
+O monitoramento de processos do VIAWEB Receiver mostra, em tempo real, o que o
+VIAWEB Receiver está processando, quais conexões socket estão sendo recebidas, o que
+está trafegando em cada conexão, decisões tomadas pelo software e situações de erros que
+possam estar acontecendo.
+A funcionalidade está disponível através da interface web do VIAWEB Receiver. Abra o
+browser de sua preferência e digite o endereço http://[endereço_ip]:[porta]/ , ou
+http://127.0.0.1:1780/ caso esteja executando no mesmo computador onde o VIAWEB
+Receiver está sendo executado. Após digitar a senha de acesso, clique em Monitorar
+processos internos.
+Monitoramento do VIAWEB Receiver em tempo real 64
+Na parte superior, é possível filtrar o nível de informações a serem mostradas na tela,
+componente a componente, para todos os componentes configurados no VIAWEB Receiver.
+Seis níveis de informação estão disponíveis:
+• Nenhum: nenhuma mensagem será mostrada.
+• Erro: apenas mensagens de erro serão mostradas.
+• Operação: mensagens de erro e de operação no componente serão mostradas.
+• Info: mostrada detalhes de funcionamento, operação e erros.
+• Debug: mostrada todas as informações necessárias para depuração.
+• Network: todas as mensagens incluindo funcionamento dos sockets de rede em detalhes
+serão mostradas.
+O campo embaixo passará a mostrar as informações técnicas desejadas. Mantendo a
+tela aberta, os próximos eventos aparecerão automaticamente, rolando a tela. Para evitar que
+isso aconteça, clique no botão Parar.
+Mais informações sobre como acessar e operar a interface web podem ser encontradas
+no Manual de Operação e Configuração do VIAWEB Receiver.
+Monitoramento do VIAWEB Receiver em tempo real 65
+MONITORAMENTO DO VIAWEB RECEIVER EM ARQUIVO DE LOG
+O VIAWEB Receiver registra em arquivo log toda sua atividade, componente a
+componente, gerando um arquivo diferente por dia. No Windows, a pasta padrão para gravar
+os arquivos de log é C:\ProgramData\SI Sistemas Inteligentes Eletronicos\
+VIAWEB Receiver\log\ . No Linux, o diretório padrão é /var/log/VIAWEBReceiver/ .
+Em ambas as plataformas, é possível configurar um outro local para as logs.
+O formato interno do arquivo é semelhante ao da funcionalidade Monitorar processos
+internos visto no item anterior. Arquivos de dias anteriores podem ser livremente
+compactados, alterados ou removidos, sem interferência no VIAWEB Receiver. Para
+compactar, alterar ou remover o arquivo do dia de hoje, pare antes o serviço (Windows) ou o
+daemon (Linux) do VIAWEB Receiver.
+SIMULADOR DO PROTOCOLO DE INTEGRAÇÃO: MONITORAMENTO CPP
+O utilitário Monitoramento CPP ajuda a testar e depurar o formato das mensagens JSON
+trocadas entre o software de monitoramento e o VIAWEB Receiver.
+Simulador do protocolo de integração: Monitoramento CPP 66
+Clique em Conectar e informe os dados de conexão ao VIAWEB Receiver. Caso o
+software esteja rodando no mesmo computador do VIAWEB Receiver, os dados de conexão
+serão obtidos do Registry conforme explicado no capítulo Conexão Socket no início deste
+manual.
+Cada um dos botões do lado esquerdo inferior da tela acrescenta um texto JSON no
+campo ao lado para livre edição. Nenhuma validação é feita nesse campo para que se possa
+testar o envio de mensagens com erro de formatação, porém os botões do lado esquerdo não
+conseguirão funcionar caso a mensagem esteja em formato incorreto.
+Com a mensagem pronta, clique em Enviar do lado direito inferior. As mensagens
+trafegadas aparecem na parte superior da tela: as enviadas do Monitoramento para o VIAWEB
+Receiver são prefixadas com um símbolo < , e as originadas pelo VIAWEB Receiver e
+recebidas pelo Monitoramento são prefixadas com um símbolo > . Ao clicar numa mensagem,
+ela é apresentada no campo de edição com formatação para facilitar a leitura.
+Operações de eventos precisam ser respondidas, conforme explicado nos capítulos
+destas operações. Para facilitar, os IDs das mensagens são guardados pelo Monitoramento:
+basta clicar nos botões e as mensagens ficam prontas para envio.
+Caso haja interesse, o código fonte do Monitoramento CPP acompanha o Kit de
+desenvolvimento. Ele foi escrito em C/C++ com interface Win32.
+SIMULADOR DE EQUIPAMENTO: VIAWEB VIRTUAL
+O software VIAWEB virtual permite a realização de testes com o VIAWEB Receiver e
+Simulador de equipamento: VIAWEB virtual 67
+com os softwares de monitoramento sem necessidade de aquisição de uma placa física
+VIAWEB.
+Inicialmente, preencha os dados para acesso ao VIAWEB Receiver: o endereço IP ou
+DNS embaixo, e ao lado a porta TCP e o ID ISEP. Lembre-se que é necessário autorizar
+equipamentos novos no VIAWEB Receiver ou cadastrá-los antecipadamente para que eles
+fiquem online no servidor VIAWEB.
+Os botões embaixo geram eventos para o VIAWEB Receiver.
+SIMULADORES DE CARGA: STRESSWINDOWS E STRESSLINUX
+As ferramentas StressWindows.exe e StressLinux.out , respectivamente para
+Windows e Linux, ajudam a simular situações de carga e stress no VIAWEB Receiver, e podem
+ser de grande ajuda para testar também situações de stress em softwares de monitoramento
+integrados.
+Com o Prompt de Comando aberto no Windows, navegue até a pasta onde o
+StressWindows.exe está gravado e digite: StressWindows /? . As opções de utilização
+são informadas:
+Teste de stress do VIAWEB Receiver 10.0
+Opções de execução:
+ --msg=<qtde>, /m <qtde> Realiza um ataque MSG enviando eventos ISEP (default
+Simuladores de carga: StressWindows e StressLinux 68
+ataque conexões ISEP)
+ --endereco=<host>, /e <host> Endereço do servidor a ser atacado (default 127.0.0.1)
+ --porta=<porta>, /p <porta> Porta do servidor a ser atacada (default 1733)
+ --sockets=<qtde>, /s <qtde> Quantidade de sockets para abrir (default 1)
+ --id=<isep>, /i <isep> ID ISEP inicial em hexadecimal (default 1000)
+ --evento=<cod>, /v <cod> Código fixo do evento em hexadecimal (default
+incrementa a partir de 1100)
+ --tempo=<ms>, /t <ms> Tempo de espera entre cada envio (default 0 ms)
+No Linux, as opções são similares e podem ser obtidas com o comando
+StressLinux.out --help .
+Teste de stress do VIAWEB Receiver 10.0
+Opções de execução:
+ --msg=<qtde>, -m <qtde> Realiza um ataque MSG enviando eventos ISEP (default
+ataque conexões ISEP)
+ --endereco=<host>, -e <host> Endereço do servidor a ser atacado (default 127.0.0.1)
+ --porta=<porta>, -p <porta> Porta do servidor a ser atacada (default 1733)
+ --sockets=<qtde>, -s <qtde> Quantidade de sockets para abrir (default 1)
+ --id=<isep>, -i <isep> ID ISEP inicial em hexadecimal (default 1000)
+ --evento=<cod>, -v <cod> Código fixo do evento em hexadecimal (default
+incrementa a partir de 1100)
+ --tempo=<ms>, -t <ms> Tempo de espera entre cada envio (default 0 ms)
+Executando sem parâmetros, a ferramenta abre uma conexão ISEP simulando um único
+equipamento no endereço 127.0.0.1, porta 1733. Este comportamento pode ser alterado
+informando um ou vários parâmetros conforme indicado na ajuda.
+Para ampliar a magnitude do teste de carga, pode-se executar a ferramenta em vários
+computadores separados na rede.
+CÓDIGOS DE EXEMPLO
+Para auxiliar no desenvolvimento dos software de monitoramento, o Kit de
+desenvolvimento traz alguns exemplos de código em linguagens diferentes:
+• Monitoramento CPP: código completo em C/C++ com interface Win32. Contém acesso
+registry, conexão socket assíncrona, criptografia AES 256-bit CBC, recepção de eventos e
+envio de comandos.
+• Monitoramento JS: código simples em javascript para rodar em NodeJS. Contém conexão
+socket, criptografia AES 256-bit CBC e recepção de eventos.
+• Monitoramento PHP: código simples em PHP para rodar em servidores HTTP (Apache,
+por exemplo). Contém conexão socket, criptografia AES 256-bit CBC e recepção de
+eventos.
+Códigos de exemplo 69
+H I S T Ó R I C O D E V E R S Õ E S D O
+P R O T O C O L O
+Esta é a primeira versão do protocolo de integração, a versão 1. Quando houver novas
+versões do protocolo, as diferenças estarão descritas aqui.
+Histórico de versões do protocolo 70
