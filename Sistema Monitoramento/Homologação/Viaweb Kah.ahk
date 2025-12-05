@@ -10,6 +10,7 @@
 #Warn All, off
 #SingleInstance Force
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\ComboBoxFilter.ahk
 Persistent
 
 ; ===================== CONFIGURAÇÃO =====================
@@ -18,7 +19,7 @@ Persistent
 	CHAVE := "94EF1C592113E8D27F5BB4C5D278BF3764292CEA895772198BA9435C8E9B97FD"
 	IV := "70FC01AA8FCA3900E384EA28A5B7BCEF"
 
-	ISEP_DEFAULT := "0002"
+	ISEP_DEFAULT := "0001 - Sede"
 	SENHA_DEFAULT := "8790"
 
 	POLL_INTERVAL_MS := 500
@@ -59,8 +60,14 @@ Persistent
 	global statusConexao := "Desconectado"
 	global colorConexao := CORES.DESCONECTADO
 	global guiHwnd := 0
-	
+	global gunidades := [
+        {id: "0001", label: "Sede"}
+      , {id: "0002", label: "Acerto"}
+      , {id: "0003", label: "Filial Norte"}
+    ]
+
 	; Controles de GUI
+	global guiCtrlISEP := 0
 	global guiCtrlStatusConexao := 0
 	global guiCtrlTimestamp := 0
 	global guiCtrlParticoes := []
@@ -218,7 +225,7 @@ Persistent
 			cmdId := this.GetCommandId()
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"particoes"}]}]}'
 			this.Send(cmdObj)
-			AddHistorico("📋 Consultando partições...`tid: " cmdId, CORES.INFO)
+			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId, CORES.INFO)
 		}
 
 		StatusZonas(idISEP) {
@@ -609,6 +616,7 @@ Persistent
 
 	CriarGUI() {
 		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlSensores, guiCtrlHistorico, CORES
+			, gunidades
 		MyGui := Gui()
 		guiHwnd := MyGui.Hwnd
 
@@ -626,7 +634,17 @@ Persistent
 
 		; Informações de Conexão
 			MyGui.Add("Text", "x15 w410", "Endereço:`t`t" IP ":" PORTA)
-			MyGui.Add("Text", "x15 w410 y+0", "ISEP:`t`t`t" ISEP_DEFAULT)
+
+			MyGui.Add("Text", "x15 w60 y+5", "ISEP:")
+
+			;guiCtrlISEP := MyGui.Add("DropDownList", "x80 yp-3 w100 Choose1", ["0001", "0002", "0003", "0004", "0005"])
+			;guiCtrlISEP.OnEvent("Change", ISEPChanged)
+
+			guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w100", gunidades)
+			filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)  ; keepOpen = true | id-label = true
+			guiCtrlISEP.Text := ISEP_DEFAULT  ; Define valor inicial
+			guiCtrlISEP.OnEvent("Change", ISEPChanged)
+
 			guiCtrlTimestamp := MyGui.Add("Text", "x15 w410 y+0", "Última atualização:`t00:00:00")
 			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
@@ -739,6 +757,11 @@ Persistent
 		}
 	}
 
+	ISEPChanged(GuiCtrlObj, Info) {
+		global ISEP_DEFAULT
+		ISEP_DEFAULT := Format( '{:04}',GuiCtrlObj.Text)
+		AddHistorico("📝 ISEP alterado para: " ISEP_DEFAULT, CORES.INFO)
+}
 ; ===================== INICIALIZAÇÃO ======================
 
 	try {
