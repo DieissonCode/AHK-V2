@@ -1,10 +1,20 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.3
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.4
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
 ;@Ahk2Exe-SetMainIcon C:\AHK\icones\switch_collumn.ico
+
+/**
+ * VIAWEB KAH - Monitor de Segurança
+ * 
+ * Sistema de monitoramento e controle de centrais de alarme via protocolo VIAWEB.
+ * Permite visualização de status de partições e sensores, além de comandos de armar/desarmar.
+ * 
+ * @version 0.0.4.4
+ * @requires AutoHotkey v2.0
+ */
 
 #Requires AutoHotkey v2.0
 #Warn All, off
@@ -14,16 +24,26 @@
 Persistent
 
 ; ===================== CONFIGURAÇÃO =====================
+	; Conexão com servidor VIAWEB
 	IP := "10.0.20.43"
 	PORTA := 2700
 	CHAVE := "94EF1C592113E8D27F5BB4C5D278BF3764292CEA895772198BA9435C8E9B97FD"
 	IV := "70FC01AA8FCA3900E384EA28A5B7BCEF"
 
+	; Configurações padrão de operação
 	ISEP_DEFAULT := "0001 - Sede"
 	SENHA_DEFAULT := "8790"
 
+	; Intervalos de polling e atualização (em milissegundos)
 	POLL_INTERVAL_MS := 500
 	GUI_UPDATE_MS := 1000
+	
+	; Limites e constantes
+	MAX_HISTORICO := 50
+	MAX_PARTICOES := 8
+	MAX_SENSORES := 32
+	BLOCK_SIZE := 16  ; Tamanho do bloco AES
+	RECV_BUFFER_SIZE := 65536
 
 ; ===================== CONSTANTES DE CORES =====================
 	CORES := {
@@ -81,18 +101,36 @@ Persistent
 
 ; ===================== CLASSES =====================
 
-	; Classe base com os comandos do protocolo VIAWEB
+	/**
+	 * Classe base com os comandos do protocolo VIAWEB
+	 * Implementa comandos de identificação, armar, desarmar e consulta de status
+	 */
 	class Viaweb {
+		/**
+		 * Gera um ID único para comandos baseado no IP e contador
+		 * @returns {String} ID único do comando
+		 */
 		GetCommandId() {
 			this.commandId++
 			return SubStr(SysGetIPAddresses()[1], -3) this.commandId
 		}
 
+		/**
+		 * Envia comando de identificação ao servidor VIAWEB
+		 * @param {String} nome - Nome do cliente a identificar
+		 */
 		Identificar(nome := "AHK Monitor") {
 			identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
 			this.Send(identJson)
 		}
 
+		/**
+		 * Arma partições da central
+		 * @param {String} idISEP - ID da unidade ISEP
+		 * @param {String} senha - Senha de autenticação
+		 * @param {Array|Number} particoes - Partição ou array de partições a armar
+		 * @param {Number} forcado - 1 para armar forçado, 0 para armar normal
+		 */
 		Armar(idISEP, senha, particoes, forcado := 0) {
 			idClean := RegExReplace(idISEP, "\D")
 			if (idClean = "")
@@ -108,6 +146,12 @@ Persistent
 			this.StatusZonas(idISEP)
 		}
 
+		/**
+		 * Desarma partições da central
+		 * @param {String} idISEP - ID da unidade ISEP
+		 * @param {String} senha - Senha de autenticação
+		 * @param {Array|Number} particoes - Partição ou array de partições a desarmar
+		 */
 		Desarmar(idISEP, senha, particoes) {
 			idClean := RegExReplace(idISEP, "\D")
 			if (idClean = "")
@@ -123,6 +167,10 @@ Persistent
 			this.StatusZonas(idISEP)
 		}
 
+		/**
+		 * Solicita status das partições
+		 * @param {String} idISEP - ID da unidade ISEP
+		 */
 		StatusParticoes(idISEP) {
 			idClean := RegExReplace(idISEP, "\D")
 			if (idClean = "")
@@ -133,6 +181,10 @@ Persistent
 			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId "`tIdIsep: " idClean, CORES.INFO)
 		}
 
+		/**
+		 * Solicita status das zonas/sensores
+		 * @param {String} idISEP - ID da unidade ISEP
+		 */
 		StatusZonas(idISEP) {
 			idClean := RegExReplace(idISEP, "\D")
 			if (idClean = "")
@@ -144,7 +196,10 @@ Persistent
 		}
 	}
 
-	; Cliente: gerencia socket/cripto e herda os comandos do protocolo
+	/**
+	 * Cliente VIAWEB - Gerencia socket, criptografia e herda comandos do protocolo
+	 * Implementa conexão TCP com criptografia AES-CBC
+	 */
 	class ViawebClient extends Viaweb {
 		socket := 0
 		crypto := 0
@@ -159,34 +214,46 @@ Persistent
 			this.crypto := ViawebCrypto(hexKey, hexIV)
 		}
 
+		/**
+		 * Estabelece conexão TCP com o servidor VIAWEB
+		 * @returns {Boolean} true se conectado com sucesso
+		 * @throws {Error} Se falhar em alguma etapa da conexão
+		 */
 		Connect() {
+			; Inicializa Winsock
 			wsaData := Buffer(408)
 			if DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", wsaData)
 				throw Error("WSAStartup falhou")
 
+			; Cria socket TCP
 			this.socket := DllCall("ws2_32\socket", "Int", 2, "Int", 1, "Int", 6, "Ptr")
 			if (this.socket = -1)
 				throw Error("Falha ao criar socket")
 
+			; Resolve hostname
 			hostent := DllCall("ws2_32\gethostbyname", "AStr", this.ip, "Ptr")
 			if (! hostent)
 				throw Error("Falha ao resolver hostname")
 
+			; Extrai endereço IP
 			addrList := NumGet(hostent + (A_PtrSize = 8 ? 24 : 12), "Ptr")
 			addr := NumGet(addrList, "Ptr")
 			ipAddr := NumGet(addr, "UInt")
 
+			; Prepara estrutura sockaddr
 			sockAddr := Buffer(16, 0)
 			NumPut("Short", 2, sockAddr, 0)
 			NumPut("UShort", DllCall("ws2_32\htons", "UShort", this.port, "UShort"), sockAddr, 2)
 			NumPut("UInt", ipAddr, sockAddr, 4)
 
+			; Conecta ao servidor
 			result := DllCall("ws2_32\connect", "Ptr", this.socket, "Ptr", sockAddr, "Int", 16, "Int")
 			if (result = -1)
 				throw Error("Falha ao conectar: " DllCall("ws2_32\WSAGetLastError", "Int"))
 
+			; Configura socket como non-blocking
 			modeBuf := Buffer(4)
-			NumPut("UInt", 1, modeBuf, 0) ; 1 = non-blocking
+			NumPut("UInt", 1, modeBuf, 0)
 			res := DllCall("ws2_32\ioctlsocket", "Ptr", this.socket, "UInt", 0x8004667E, "Ptr", modeBuf)
 			if (res != 0) {
 				err := DllCall("ws2_32\WSAGetLastError", "Int")
@@ -200,6 +267,9 @@ Persistent
 			return true
 		}
 
+		/**
+		 * Fecha conexão e limpa recursos
+		 */
 		Disconnect() {
 			if (this.socket) {
 				DllCall("ws2_32\closesocket", "Ptr", this.socket)
@@ -209,6 +279,12 @@ Persistent
 			}
 		}
 
+		/**
+		 * Envia dados criptografados ao servidor
+		 * @param {String} jsonStr - String JSON a enviar
+		 * @returns {Number} Número de bytes enviados
+		 * @throws {Error} Se não conectado ou falha no envio
+		 */
 		Send(jsonStr) {
 			if (!this.connected)
 				throw Error("Não conectado")
@@ -220,18 +296,25 @@ Persistent
 			return result
 		}
 
+		/**
+		 * Verifica e processa dados recebidos do servidor
+		 * Acumula dados criptografados, descriptografa blocos completos e processa JSON
+		 */
 		Poll() {
 			if (!this.connected)
 				return
 
+			; Recebe dados disponíveis
 			Loop {
-				recvBuf := Buffer(65536)
+				recvBuf := Buffer(RECV_BUFFER_SIZE)
 				received := DllCall("ws2_32\recv", "Ptr", this.socket, "Ptr", recvBuf, "Int", recvBuf.Size, "Int", 0, "Int")
 				if (received < 0) {
 					err := DllCall("ws2_32\WSAGetLastError", "Int")
+					; WSAEWOULDBLOCK (10035) é esperado em non-blocking
 					if (err = 10035)
 						break
 					FileAppend("[DEBUG] WSA Error: " err "`n", A_ScriptDir "\debug.log")
+					; WSAECONNRESET (10054) significa conexão fechada
 					if (err = 10054) {
 						AddHistorico("⚠️ Conexão fechada.", CORES.ERRO)
 						this.Disconnect()
@@ -245,6 +328,7 @@ Persistent
 					return
 				}
 
+				; Copia dados recebidos para novo buffer
 				chunk := Buffer(received)
 				Loop received
 					NumPut("UChar", NumGet(recvBuf, A_Index-1, "UChar"), chunk, A_Index-1)
@@ -253,16 +337,19 @@ Persistent
 				recvEncryptedAccum := CombineBuffers(recvEncryptedAccum, chunk)
 			}
 
+			; Processa blocos completos de criptografia (múltiplos de 16 bytes)
 			global recvEncryptedAccum, recvPlainBuffer
 			if (!recvEncryptedAccum.Size)
 				return
 
-			fullBlocksBytes := Floor(recvEncryptedAccum.Size / 16) * 16
+			fullBlocksBytes := Floor(recvEncryptedAccum.Size / BLOCK_SIZE) * BLOCK_SIZE
 			if (fullBlocksBytes > 0) {
+				; Extrai blocos completos para processamento
 				procBuf := Buffer(fullBlocksBytes)
 				Loop fullBlocksBytes
 					NumPut("UChar", NumGet(recvEncryptedAccum, A_Index-1, "UChar"), procBuf, A_Index-1)
 
+				; Mantém bytes restantes no acumulador
 				leftoverSize := recvEncryptedAccum.Size - fullBlocksBytes
 				if (leftoverSize > 0) {
 					leftover := Buffer(leftoverSize)
@@ -273,6 +360,7 @@ Persistent
 					recvEncryptedAccum := Buffer(0)
 				}
 
+				; Descriptografa blocos
 				try {
 					plaintext := this.crypto.Decrypt(procBuf)
 					recvPlainBuffer := recvPlainBuffer . plaintext
@@ -281,6 +369,7 @@ Persistent
 					return
 				}
 
+				; Extrai e processa JSONs completos do buffer
 				while (true) {
 					nextJson := ExtractNextJsonFromBuffer()
 					if (!nextJson)
@@ -295,6 +384,10 @@ Persistent
 		}
 	}
 
+	/**
+	 * Classe de criptografia VIAWEB
+	 * Implementa AES-256-CBC usando BCrypt API do Windows
+	 */
 	class ViawebCrypto {
 		hAlg := 0
 		hKey := 0
@@ -302,19 +395,28 @@ Persistent
 		ivRecv := Buffer(16)
 		blockSize := 16
 
+		/**
+		 * Inicializa algoritmo de criptografia AES-CBC
+		 * @param {String} hexKey - Chave em formato hexadecimal
+		 * @param {String} hexIV - IV em formato hexadecimal
+		 */
 		__New(hexKey, hexIV) {
 			key := this.HexToBytes(hexKey)
 			iv := this.HexToBytes(hexIV)
+			
+			; Copia IV para buffers de envio e recepção
 			Loop 16 {
 				NumPut("UChar", NumGet(iv, A_Index-1, "UChar"), this.ivSend, A_Index-1)
 				NumPut("UChar", NumGet(iv, A_Index-1, "UChar"), this.ivRecv, A_Index-1)
 			}
 
+			; Abre provedor de algoritmo AES
 			result := DllCall("bcrypt\BCryptOpenAlgorithmProvider", "Ptr*", &hAlg := 0, "WStr", "AES", "Ptr", 0, "UInt", 0, "UInt")
 			if (result != 0)
 				throw Error("BCryptOpenAlgorithmProvider falhou: " Format("0x{:08X}", result))
 			this.hAlg := hAlg
 
+			; Configura modo de encadeamento CBC
 			chainMode := Buffer(StrPut("ChainingModeCBC", "UTF-16") * 2)
 			StrPut("ChainingModeCBC", chainMode, "UTF-16")
 
@@ -322,12 +424,16 @@ Persistent
 			if (result != 0)
 				throw Error("BCryptSetProperty falhou: " Format("0x{:08X}", result))
 
+			; Gera chave simétrica
 			result := DllCall("bcrypt\BCryptGenerateSymmetricKey", "Ptr", this.hAlg, "Ptr*", &hKey := 0, "Ptr", 0, "UInt", 0, "Ptr", key, "UInt", key.Size, "UInt", 0, "UInt")
 			if (result != 0)
 				throw Error("BCryptGenerateSymmetricKey falhou: " Format("0x{:08X}", result))
 			this.hKey := hKey
 		}
 
+		/**
+		 * Limpa recursos de criptografia
+		 */
 		__Delete() {
 			if (this.hKey)
 				DllCall("bcrypt\BCryptDestroyKey", "Ptr", this.hKey)
@@ -335,12 +441,18 @@ Persistent
 				DllCall("bcrypt\BCryptCloseAlgorithmProvider", "Ptr", this.hAlg, "UInt", 0)
 		}
 
+		/**
+		 * Criptografa texto usando AES-CBC
+		 * @param {String} plainText - Texto a criptografar
+		 * @returns {Buffer} Buffer com dados criptografados
+		 */
 		Encrypt(plainText) {
 			plainBytes := this.StringToBytes(plainText)
 			paddedSize := Ceil(plainBytes.Size / 16) * 16
 			if (paddedSize = 0)
 				paddedSize := 16
 
+			; Aplica padding com zeros
 			paddedData := Buffer(paddedSize, 0)
 			Loop plainBytes.Size
 				NumPut("UChar", NumGet(plainBytes, A_Index-1, "UChar"), paddedData, A_Index-1)
@@ -362,17 +474,24 @@ Persistent
 			if (result != 0)
 				throw Error("BCryptEncrypt falhou: " Format("0x{:08X}", result))
 
+			; Atualiza IV com último bloco cifrado (CBC mode)
 			Loop 16
 				NumPut("UChar", NumGet(encrypted, paddedSize-16 + A_Index-1, "UChar"), this.ivSend, A_Index-1)
 
 			return encrypted
 		}
 
+		/**
+		 * Descriptografa dados usando AES-CBC
+		 * @param {Buffer} encryptedBuffer - Buffer com dados criptografados
+		 * @returns {String} Texto descriptografado
+		 */
 		Decrypt(encryptedBuffer) {
 			dataSize := encryptedBuffer.Size
 			if (Mod(dataSize, 16) != 0)
 				throw Error("Dados criptografados devem ter tamanho múltiplo de 16")
 
+			; Salva último bloco para atualizar IV
 			lastBlock := Buffer(16)
 			Loop 16
 				NumPut("UChar", NumGet(encryptedBuffer, dataSize-16 + A_Index-1, "UChar"), lastBlock, A_Index-1)
@@ -394,9 +513,11 @@ Persistent
 			if (result != 0)
 				throw Error("BCryptDecrypt falhou: " Format("0x{:08X}", result))
 
+			; Atualiza IV com último bloco cifrado (CBC mode)
 			Loop 16
 				NumPut("UChar", NumGet(lastBlock, A_Index-1, "UChar"), this.ivRecv, A_Index-1)
 
+			; Remove padding de zeros
 			endPos := bytesWritten
 			while (endPos > 0 && NumGet(decrypted, endPos-1, "UChar") = 0)
 				endPos--
@@ -404,6 +525,11 @@ Persistent
 			return StrGet(decrypted, endPos, "UTF-8")
 		}
 
+		/**
+		 * Converte string hexadecimal para bytes
+		 * @param {String} hexStr - String em formato hexadecimal
+		 * @returns {Buffer} Buffer com bytes
+		 */
 		HexToBytes(hexStr) {
 			hexStr := StrReplace(hexStr, " ", "")
 			len := StrLen(hexStr) // 2
@@ -415,6 +541,11 @@ Persistent
 			return buf
 		}
 
+		/**
+		 * Converte string para bytes UTF-8
+		 * @param {String} str - String a converter
+		 * @returns {Buffer} Buffer com bytes UTF-8
+		 */
 		StringToBytes(str) {
 			len := StrPut(str, "UTF-8") - 1
 			buf := Buffer(len)
@@ -425,6 +556,12 @@ Persistent
 
 ; ===================== FUNÇÕES AUXILIARES =====================
 
+	/**
+	 * Junta elementos de array em string separada
+	 * @param {Array} arr - Array a processar
+	 * @param {String} sep - Separador entre elementos
+	 * @returns {String} String com elementos unidos
+	 */
 	JoinArray(arr, sep := ",") {
 		out := ""
 		i := 1
@@ -437,6 +574,12 @@ Persistent
 		return out
 	}
 
+	/**
+	 * Combina dois buffers em um novo buffer
+	 * @param {Buffer} b1 - Primeiro buffer
+	 * @param {Buffer} b2 - Segundo buffer
+	 * @returns {Buffer} Novo buffer combinado
+	 */
 	CombineBuffers(b1, b2) {
 		newSize := b1.Size + b2.Size
 		newBuf := Buffer(newSize)
@@ -452,19 +595,27 @@ Persistent
 		return newBuf
 	}
 
+	/**
+	 * Adiciona mensagem ao histórico com timestamp e cor
+	 * @param {String} message - Mensagem a adicionar
+	 * @param {String} color - Código de cor hexadecimal
+	 */
 	AddHistorico(message, color := "FFFFFF") {
 		global historicoMensagens, guiHwnd, client
 		timestamp := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
 		historicoMensagens.InsertAt(1, {message: message, color: color, timestamp: timestamp})
 
-		if (historicoMensagens.Length > 50)
+		if (historicoMensagens.Length > MAX_HISTORICO)
 			historicoMensagens.Pop()
 		
 		if (guiHwnd && client && IsObject(client))
 			AtualizarGUI()
-
 	}
 
+	/**
+	 * Processa resposta de status de partições
+	 * @param {Object} resposta - Objeto JSON com dados da partição
+	 */
 	ProcessaParticoes(resposta) {
 		Global particionesStatus
 		armado := resposta['armado']
@@ -474,6 +625,10 @@ Persistent
 		AddHistorico("✅ Status da partição " particao " atualizado", CORES.SUCESSO)
 	}
 
+	/**
+	 * Processa resposta de status de zonas/sensores
+	 * @param {Object} resposta - Objeto JSON com dados do sensor
+	 */
 	ProcessaZonas(resposta) {
 		Global zonasStatus
 		aberta		:= resposta['aberta']
@@ -487,15 +642,24 @@ Persistent
 		AddHistorico("✅ Status do sensor " pos " atualizado`r`n`tAberto: " aberta " | Disparado: " disparada " | Inibida: " inibida " | Tamper: " tamper " | Temporizando: " temporizando, CORES.SUCESSO)
 	}
 
+	/**
+	 * Envia resposta de confirmação de evento
+	 * @param {String} id - ID do evento a confirmar
+	 */
 	ResponderEvento(id) {
 		global client
 		respJson := '{"resp":[{"id":"' id '"}]}'
 		client.Send(respJson)
 	}
 
+	/**
+	 * Processa resposta JSON do servidor
+	 * @param {String} jsonStr - String JSON a processar
+	 */
 	ProcessarResposta(jsonStr) {
 		response := json.parse(jsonStr)
 		if	IsSet(response) && isObject(response) {
+			; Resposta de autenticação
 			if(response.Has("a")) {
 				AddHistorico("ℹ️ Autenticado.`tEventos pendentes: " (response.Has("eventosPendentes") ? response["eventosPendentes"] : "0"), CORES.INFO)
 				return
@@ -511,6 +675,10 @@ Persistent
 		}
 	}
 
+	/**
+	 * Trata respostas do servidor VIAWEB
+	 * @param {Object} respObj - Objeto de resposta
+	 */
 	TratarResp(respObj) {
 		global client
 		for index, item in respObj {
@@ -518,6 +686,8 @@ Persistent
 				continue
 			if(item.Capacity = 0)
 				continue
+			
+			; Processa eventos que requerem confirmação
 			if(respObj.Has("oper")) {
 				if(InStr(respObj['oper'][1]['acao'], 'evento') && InStr(respObj['oper'][1]['id'], '-evento')) {
 					ResponderEvento(respObj['oper'][1]['id'])
@@ -529,6 +699,7 @@ Persistent
 					}
 			}
 
+			; Processa respostas de comandos
 			if(item.Has("resposta")) {
 				resposta := item['resposta']
 				if(resposta.HasProp('Capacity'))
@@ -541,7 +712,6 @@ Persistent
 							else if	(cmd = 'zonas') {
 								ProcessaZonas(resposta[A_Index])
 							}
-							
 						}
 					}
 				ResponderEvento(item['id'])
@@ -549,12 +719,17 @@ Persistent
 		}
 	}
 
+	/**
+	 * Extrai próximo JSON completo do buffer de texto
+	 * @returns {String} JSON completo ou string vazia se não houver
+	 */
 	ExtractNextJsonFromBuffer() {
 		global recvPlainBuffer
 		s := recvPlainBuffer
 		if (!s)
 			return ""
 
+		; Encontra início do JSON
 		start := 0
 		len := StrLen(s)
 		Loop len {
@@ -568,6 +743,8 @@ Persistent
 			recvPlainBuffer := ""
 			return ""
 		}
+		
+		; Processa JSON verificando balanceamento de chaves/colchetes
 		s := SubStr(s, start)
 		len := StrLen(s)
 		depth := 0
@@ -578,6 +755,7 @@ Persistent
 			i++
 			ch := SubStr(s, i, 1)
 
+			; Trata strings entre aspas
 			if (ch = '"') {
 				bs := 0, j := i-1
 				while (j >= 1 && SubStr(s, j, 1) = "\") {
@@ -590,6 +768,7 @@ Persistent
 			if (inStr)
 				continue
 
+			; Conta profundidade de chaves/colchetes
 			if (ch = "{" || ch = "[")
 				depth++
 			else if (ch = "}" || ch = "]") {
@@ -609,13 +788,25 @@ Persistent
 		return ""
 	}
 
+	/**
+	 * Timer de polling - verifica dados recebidos
+	 */
 	PollTimer() {
 		global client
 		if (client && IsObject(client) && client.connected) {
-			client.Poll()
+			try {
+				client.Poll()
+			} catch Error as e {
+				FileAppend("[ERROR] PollTimer: " e.Message "`n", A_ScriptDir "\debug.log")
+			}
 		}
 	}
 
+	/**
+	 * Obtém status formatado de um sensor
+	 * @param {Number} numSensor - Número do sensor (1-32)
+	 * @returns {Object} Objeto com texto e cor do status
+	 */
 	ObterStatusSensor(numSensor) {
 		global zonasStatus, CORES
 		
@@ -628,6 +819,7 @@ Persistent
 
 		dados := zonasStatus[numSensor]
 		
+		; Prioridade de estados (do mais crítico ao menos crítico)
 		if (dados["disparada"] = "1") {
 			return {texto: "Disparado", cor: CORES.SENSOR_DISPARADO}
 		} else if (dados["aberta"] = "1") {
@@ -645,8 +837,13 @@ Persistent
 		}
 	}
 
+	/**
+	 * Obtém status formatado de uma partição
+	 * @param {Number} numParticao - Número da partição (1-8)
+	 * @returns {Object} Objeto com dados de status da partição
+	 */
 	ObterStatusParticao(numParticao) {
-		global particionesStatus
+		global particionesStatus, CORES
 		
 		if (! particionesStatus.Has(numParticao)) {
 			return {
@@ -662,6 +859,7 @@ Persistent
 		armado := dados["armado"]
 		disparado := dados["disparado"]
 
+		; Prioridade: Disparada > Armada > Desarmada
 		if (disparado = "1") {
 			return {
 				armado: armado,
@@ -689,6 +887,10 @@ Persistent
 		}
 	}
 
+	/**
+	 * Atualiza interface gráfica com status atual
+	 * Otimizado para minimizar redesenhos desnecessários
+	 */
 	AtualizarGUI() {
 		global guiHwnd, particionesStatus, historicoMensagens, ultimaAtualizacao, statusConexao, colorConexao, client
 		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico, guiCtrlSensores
@@ -696,6 +898,7 @@ Persistent
 		if (!guiHwnd)
 			return
 
+		; Atualiza status de conexão
 		if (!client || !IsObject(client)) {
 			statusConexao := "🔴 DESCONECTADO"
 			colorConexao := CORES.DESCONECTADO
@@ -707,31 +910,28 @@ Persistent
 		colorConexao := client.connected ? CORES.CONECTADO : CORES.DESCONECTADO
 		try guiCtrlStatusConexao.Text := statusConexao
 
+		; Atualiza timestamp
 		ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
 		try guiCtrlTimestamp.Text := "Última atualização:`t" ultimaAtualizacao
 
-		Loop 8 {
+		; Atualiza partições (desativa redraw para performance)
+		Loop MAX_PARTICOES {
 			status := ObterStatusParticao(A_Index)
 			guiCtrlParticoes[A_Index].Opt("-Redraw")
 			guiCtrlParticoes[A_Index].Text := "Partição " A_Index ": " status.texto
 			guiCtrlParticoes[A_Index].Opt("+Background" status.cor)
 		}
 
-		Loop 32 {
+		; Atualiza sensores (desativa redraw para performance)
+		Loop MAX_SENSORES {
 			status := ObterStatusSensor(A_Index)
 			guiCtrlSensores[A_Index].Opt("-Redraw")
 			guiCtrlSensores[A_Index].Text := A_Index ": " status.texto
 			guiCtrlSensores[A_Index].Opt("+Background" status.cor)
 		}
 
-		;historicoText := ""
-		;Loop historicoMensagens.Length {
-		;	item := historicoMensagens[A_Index]
-		;	historicoText := historicoText item.timestamp " - " item.message "`r`n"
-		;}
-		;try guiCtrlHistorico.Text := historicoText
-
-		Loop 32 {
+		; Reativa redraw em batch
+		Loop MAX_SENSORES {
 			if(A_Index < 9)
 				guiCtrlParticoes[A_Index].Opt("+Redraw")
 			guiCtrlSensores[A_Index].Opt("+Redraw")
@@ -740,6 +940,9 @@ Persistent
 
 ; ===================== INTERFACE GRÁFICA =====================
 
+	/**
+	 * Cria e configura a interface gráfica do monitor
+	 */
 	CriarGUI() {
 		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlSensores, guiCtrlHistorico, CORES
 			, gunidades
@@ -749,23 +952,29 @@ Persistent
 		MyGui.BackColor := CORES.FUNDO_INTERFACE
 		MyGui.SetFont("S12")
 		
+		; Cabeçalho
 		MyGui.Add("Text", "x15 Center w410 h20 cFFFFFF Background" CORES.INFO " Section", "🛡️ VIAWEB MONITOR")
 		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 		
+		; Status de conexão
 		guiCtrlStatusConexao := MyGui.Add("Text", "Center w410 h20 c" CORES.CONECTADO " Background" CORES.FUNDO_NEUTRAL, "🔴 DESCONECTADO")
 		MyGui.SetFont("S9")
 
+		; Informações de conexão
 		MyGui.Add("Text", "x15 w410", "Endereço:`t`t" IP ":" PORTA)
 
+		; Seletor de unidade ISEP
 		MyGui.Add("Text", "x15 w60 y+5", "ISEP:")
 		guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w100", gunidades)
 		filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)
 		guiCtrlISEP.Text := ISEP_DEFAULT
 		guiCtrlISEP.OnEvent("Change", ISEPChanged)
 
+		; Timestamp da última atualização
 		guiCtrlTimestamp := MyGui.Add("Text", "x15 w410 y+0", "Última atualização:`t00:00:00")
 		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
+		; Grupo de controles
 		btnCtrlGroup := MyGui.Add("GroupBox", "x15 w410 h60 Section c" CORES.TEXTO_GRUPO, "🎮 Controles de Central")
 		MyGui.Add("Button", "x025 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA, "🔒 Armar").OnEvent("Click", ArmarBtn)
 		MyGui.Add("Button", "x125 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA, "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
@@ -774,8 +983,9 @@ Persistent
 
 		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
+		; Painel de partições
 		MyGui.Add("GroupBox", "x15 y+10 w410 h165 Section c" CORES.TEXTO_GRUPO, "📊 Status das Partições ")
-		Loop 8 {
+		Loop MAX_PARTICOES {
 			guiCtrlParticoes.Push("")
 			status := ObterStatusParticao(A_Index)
 			guiCtrlParticoes[A_Index] := MyGui.Add("Text", "x20 ys+" (A_Index * 16) " w390 h16 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, "Partição " A_Index ": " status.texto)
@@ -783,9 +993,10 @@ Persistent
 
 		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
+		; Painel de sensores
 		MyGui.Add("GroupBox", "x15 y+10 w410 h180 Section c" CORES.TEXTO_GRUPO, "📡 Status dos Sensores")
 		yBaseSensores := 555
-		Loop 32 {
+		Loop MAX_SENSORES {
 			coluna := Mod(A_Index - 1, 4)
 			linha := (A_Index - 1) // 4
 			xPos := 20 + (coluna * 100)
@@ -795,9 +1006,11 @@ Persistent
 
 		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
+		; Histórico de ações
 		MyGui.Add("GroupBox", "x15 w410 h120 c" CORES.TEXTO_GRUPO " Section", "📜 Histórico de Ações:")
 		guiCtrlHistorico := MyGui.Add("Edit", "ys+20 xs+10 w390 h90 ReadOnly Multi Background" CORES.FUNDO_NEUTRAL " c" CORES.TEXTO_ESCURO)
 
+		; Valores iniciais
 		guiCtrlStatusConexao.Value := "🔴 DESCONECTADO"
 		guiCtrlTimestamp.Value := "Última atualização:`t00:00:00"
 		guiCtrlHistorico.Value := "Sistema iniciado`nAguardando conexão..."
@@ -807,6 +1020,9 @@ Persistent
 		MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
 	}
 
+	/**
+	 * Handler de fechamento da GUI
+	 */
 	GuiClose(GuiObj) {
 		global guiHwnd
 		SetTimer(PollTimer, 0)
@@ -815,6 +1031,9 @@ Persistent
 		ExitApp()
 	}
 
+	/**
+	 * Handler do botão Armar
+	 */
 	ArmarBtn(GuiCtrlObj, Info) {
 		global client, ISEP_DEFAULT, SENHA_DEFAULT
 		if (!client || !IsObject(client) || !client.connected) {
@@ -828,6 +1047,9 @@ Persistent
 		}
 	}
 
+	/**
+	 * Handler do botão Desarmar
+	 */
 	DesarmarBtn(GuiCtrlObj, Info) {
 		global client, ISEP_DEFAULT, SENHA_DEFAULT
 		if (!client || ! IsObject(client) || !client.connected) {
@@ -841,6 +1063,9 @@ Persistent
 		}
 	}
 
+	/**
+	 * Handler do botão Status (consulta partições)
+	 */
 	StatusBtn(GuiCtrlObj, Info) {
 		global client, ISEP_DEFAULT
 		if (!client || !IsObject(client) || !client.connected) {
@@ -854,6 +1079,9 @@ Persistent
 		}
 	}
 
+	/**
+	 * Handler do botão Zonas (consulta sensores)
+	 */
 	ZonasBtn(GuiCtrlObj, Info) {
 		global client, ISEP_DEFAULT
 		if (!client || !IsObject(client) || !client.connected) {
@@ -867,25 +1095,36 @@ Persistent
 		}
 	}
 
+	/**
+	 * Handler de mudança de unidade ISEP
+	 */
 	ISEPChanged(GuiCtrlObj, Info) {
 		global ISEP_DEFAULT
 		idClean := RegExReplace(GuiCtrlObj.Text, "\D")
 		ISEP_DEFAULT := Format('{:04}', idClean)
 		AddHistorico("📝 ISEP alterado para: " ISEP_DEFAULT, CORES.INFO)
-}
+	}
 ; ===================== INICIALIZAÇÃO ======================
 
+	/**
+	 * Inicialização do sistema
+	 * Cria GUI, conecta ao servidor e inicia timers
+	 */
 	try {
+		; Cria interface gráfica
 		CriarGUI()
 		
+		; Inicializa cliente VIAWEB
 		client := ViawebClient(IP, PORTA, CHAVE, IV)
 		client.Connect()
 		
 		AddHistorico("✅ Conectado em " IP ":" PORTA, CORES.SUCESSO)
 		
+		; Envia identificação ao servidor
 		client.Identificar("AHK Monitor GUI")
 		AddHistorico("🔐 Identificação enviada", CORES.INFO)
 		
+		; Inicia timers de polling e atualização de GUI
 		SetTimer(PollTimer, POLL_INTERVAL_MS)
 		SetTimer(AtualizarGUI, GUI_UPDATE_MS)
 		
@@ -896,24 +1135,40 @@ Persistent
 
 ; ===================== HOTKEYS =====================
 
+	/**
+	 * F3 - Consulta status das partições
+	 */
 	F3:: {
 		StatusBtn(0, 0)
 	}
 
+	/**
+	 * F4 - Consulta status das zonas/sensores
+	 */
 	F4:: {
 		ZonasBtn(0, 0)
 	}
 
+	/**
+	 * F1 - Arma partição 1
+	 */
 	F1:: {
 		ArmarBtn(0, 0)
 	}
 
+	/**
+	 * F2 - Desarma partição 1
+	 */
 	F2:: {
 		DesarmarBtn(0, 0)
 	}
 
 ; ===================== EXIT ======================
 
+	/**
+	 * Handler de encerramento do script
+	 * Limpa recursos e desconecta do servidor
+	 */
 	Shutdown(ExitReason, ExitCode) {
 		global client
 		SetTimer(PollTimer, 0)
