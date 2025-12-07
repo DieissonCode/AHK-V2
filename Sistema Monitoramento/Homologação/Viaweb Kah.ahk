@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.0
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.1
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -225,14 +225,14 @@ Persistent
 			cmdId := this.GetCommandId()
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"particoes"}]}]}'
 			this.Send(cmdObj)
-			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId, CORES.INFO)
+			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId "`tIdIsep: " idISEP, CORES.INFO)
 		}
 
 		StatusZonas(idISEP) {
 			cmdId := this.GetCommandId()
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"zonas"}]}]}'
 			this.Send(cmdObj)
-			AddHistorico("📋 Consultando zonas...", CORES.INFO)
+			AddHistorico("📋 Consultando zonas...`tcmdId: " cmdId "`tIdIsep: " idISEP, CORES.INFO)
 		}
 	}
 
@@ -737,7 +737,7 @@ Persistent
 			return
 		}
 		try {
-			client.StatusParticoes(ISEP_DEFAULT)
+			client.StatusParticoes(RegExReplace(ISEP_DEFAULT, "\D"))
 
 		} catch Error as e {
 			AddHistorico("❌ Erro: " e.Message, CORES.ERRO)
