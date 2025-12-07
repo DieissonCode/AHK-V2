@@ -1,4 +1,6 @@
-﻿#Requires AutoHotkey v2.0
+﻿
+ListLines(0)
+#Requires AutoHotkey v2.0
 
 class ComboBoxFilter {
     /*
@@ -109,3 +111,4 @@ class ComboBoxFilter {
 
     _gui.Show()
 */
+ListLines(1)

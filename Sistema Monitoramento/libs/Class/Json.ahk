@@ -5,6 +5,8 @@
  * @date 2024/02/24
  * @version 1.0.7
  */
+
+ListLines(0)
 if (IsSet(__isInCluded))
 	return
 #Requires AutoHotkey v2.0
@@ -20,6 +22,7 @@ class JSON {
 	 * @param as_map object literals are converted to map, otherwise to object
 	 */
 	static parse(text, keepbooltype := false, as_map := true) {
+		ListLines(0)
 		keepbooltype ? (_true := this.true, _false := this.false, _null := this.null) : (_true := true, _false := false, _null := "")
 		as_map ? (map_set := (maptype := Map).Prototype.Set) : (map_set := (obj, key, val) => obj.%key% := val, maptype := Object)
 		NQ := "", LF := "", LP := 0, P := "", R := ""
@@ -120,6 +123,7 @@ class JSON {
 	 * @param space Adds indentation, white space, and line break characters to the return-value JSON text to make it easier to read.
 	 */
 	static stringify(obj, expandlevel := unset, space := "  ") {
+		ListLines(0)
 		expandlevel := IsSet(expandlevel) ? Abs(expandlevel) : 10000000
 		return Trim(CO(obj, expandlevel))
 		CO(O, J := 0, R := 0, Q := 0) {
@@ -178,3 +182,5 @@ class JSON {
 		}
 	}
 }
+
+ListLines(1)
