@@ -1,5 +1,12 @@
 ﻿#Requires AutoHotkey v2.0
+
 class UnicodeHelper {
+    static Version := "0.0.1"
+
+    static GetVersion() {
+        return this.Version
+    }
+
     static Decode(str) {
         ListLines(0)
         out := ""
