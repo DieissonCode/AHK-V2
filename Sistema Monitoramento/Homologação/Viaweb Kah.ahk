@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.4
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.5
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -9,6 +9,7 @@
 #Requires AutoHotkey v2.0
 #Warn All, off
 #SingleInstance Force
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Unicode.ahk
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\ComboBoxFilter.ahk
 
@@ -66,6 +67,7 @@ Persistent
       , {id: "0002", label: "Acerto"}
       , {id: "0003", label: "Filial Norte"}
     ]
+	global clientesMap := Map()
 
 	; Controles de GUI
 	global guiCtrlISEP := 0
@@ -82,100 +84,101 @@ Persistent
 
 ; ===================== CLASSES =====================
 
-		; Classe base com os comandos do protocolo VIAWEB
-		class Viaweb {
-			GetCommandId() {
-				this.commandId++
-				return SubStr(SysGetIPAddresses()[1], -3) this.commandId
-			}
-
-			Identificar(nome := "AHK Monitor") {
-				identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
-				this.Send(identJson)
-			}
-
-			Armar(idISEP, senha, particoes, forcado := 0) {
-				idClean := RegExReplace(idISEP, "\D")
-				if (idClean = "")
-					idClean := idISEP
-				cmdId := this.GetCommandId()
-				if (Type(particoes) != "Array")
-					particoes := [particoes]
-				particoesStr := "[" JoinArray(particoes, ",") "]"
-				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
-				this.Send(cmdObj)
-				AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
-				this.StatusParticoes(idISEP)
-				this.StatusZonas(idISEP)
-			}
-
-			Desarmar(idISEP, senha, particoes) {
-				idClean := RegExReplace(idISEP, "\D")
-				if (idClean = "")
-					idClean := idISEP
-				cmdId := this.GetCommandId()
-				if (Type(particoes) != "Array")
-					particoes := [particoes]
-				particoesStr := "[" JoinArray(particoes, ",") "]"
-				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
-				this.Send(cmdObj)
-				AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
-				this.StatusParticoes(idISEP)
-				this.StatusZonas(idISEP)
-			}
-
-			StatusParticoes(idISEP) {
-				idClean := RegExReplace(idISEP, "\D")
-				if (idClean = "")
-					idClean := idISEP
-				cmdId := this.GetCommandId()
-				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"particoes"}]}]}'
-				this.Send(cmdObj)
-				AddHistorico("📋 Consultando partições...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
-			}
-
-			StatusZonas(idISEP) {
-				idClean := RegExReplace(idISEP, "\D")
-				if (idClean = "")
-					idClean := idISEP
-				cmdId := this.GetCommandId()
-				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"zonas"}]}]}'
-				this.Send(cmdObj)
-				AddHistorico("📋 Consultando zonas...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
-			}
-
-			ListarClientes(portas := "", nomes := "", idISEPs := "") {
-				cmdId := this.GetCommandId()
-
-				oper := Map()
-				oper["id"]   := cmdId
-				oper["acao"] := "listarClientes"
-
-				if (portas != "") {
-					if (Type(portas) != "Array")
-						portas := [portas]
-					oper["porta"] := portas
-				}
-
-				if (nomes != "") {
-					if (Type(nomes) != "Array")
-						nomes := [nomes]
-					oper["nome"] := nomes
-				}
-
-				if (idISEPs != "") {
-					if (Type(idISEPs) != "Array")
-						idISEPs := [idISEPs]
-					oper["idISEP"] := idISEPs
-				}
-
-				payload := Map("oper", [oper])
-				jsonStr := JSON.stringify(payload, , "")
-				this.Send(jsonStr)
-				AddHistorico("📋 Listar clientes enviado.`r`n`t`tcmdId: " cmdId, CORES.INFO)
-
-			}
+	; Classe base com os comandos do protocolo VIAWEB
+	class Viaweb {
+		GetCommandId() {
+			this.commandId++
+			return SubStr(SysGetIPAddresses()[1], -3) this.commandId
 		}
+
+		Identificar(nome := "AHK Monitor") {
+			identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
+			this.Send(identJson)
+		}
+
+		Armar(idISEP, senha, particoes, forcado := 0) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			if (Type(particoes) != "Array")
+				particoes := [particoes]
+			particoesStr := "[" JoinArray(particoes, ",") "]"
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
+			this.StatusParticoes(idISEP)
+		}
+
+		Desarmar(idISEP, senha, particoes) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			if (Type(particoes) != "Array")
+				particoes := [particoes]
+			particoesStr := "[" JoinArray(particoes, ",") "]"
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
+			this.StatusParticoes(idISEP)
+		}
+
+		StatusParticoes(idISEP) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"particoes"}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("📋 Consultando partições...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
+			this.StatusZonas(idISEP)
+		}
+
+		StatusZonas(idISEP) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"zonas"}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("📋 Consultando zonas...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
+		}
+
+		ListarClientes(portas := "", nomes := "", idISEPs := "") {
+			cmdId := this.GetCommandId()
+
+			oper := Map()
+			oper["id"]   := cmdId
+			oper["acao"] := "listarClientes"
+
+			if (portas != "") {
+				if (Type(portas) != "Array")
+					portas := [portas]
+				oper["porta"] := portas
+			}
+
+			if (nomes != "") {
+				if (Type(nomes) != "Array")
+					nomes := [nomes]
+				oper["nome"] := nomes
+			}
+
+			if (idISEPs != "") {
+				if (Type(idISEPs) != "Array")
+					idISEPs := [idISEPs]
+				oper["idISEP"] := idISEPs
+			}
+
+			payload := Map("oper", [oper])
+			jsonStr := JSON.stringify(payload, , "")
+
+			this.Send(jsonStr)
+
+			AddHistorico("📋 Listar clientes enviado.`r`n`t`tcmdId: " cmdId, CORES.INFO)
+
+		}
+	}
 
 	; Cliente: gerencia socket/cripto e herda os comandos do protocolo
 	class ViawebClient extends Viaweb {
@@ -314,7 +317,8 @@ Persistent
 					plaintext := this.crypto.Decrypt(procBuf)
 					recvPlainBuffer := recvPlainBuffer . plaintext
 				} catch Error as e {
-					FileAppend("[DEBUG] Erro decrypt: " e.Message "`n", A_ScriptDir "\debug.log")
+					FileAppend("[DEBUG] Erro decrypt: " e.Message "`t" e.Extra "`t" e.Line "`n", A_ScriptDir "\debug.log")
+					MsgBox("Erro ao descriptografar dados recebidos: " e.Message)
 					return
 				}
 				ListLines(0)
@@ -323,9 +327,10 @@ Persistent
 					if (!nextJson)
 						break
 					try {
-						ProcessarResposta(nextJson)
+						ProcessarResposta(UnicodeHelper.Decode(nextJson))
+						OutputDebug(UnicodeHelper.Decode(nextJson))
 					} catch Error as e {
-						FileAppend("[DEBUG] Erro ProcessarResposta: " e.Message "`nJSON:`n" nextJson "`n", A_ScriptDir "\debug.log")
+						FileAppend("[DEBUG] Erro ProcessarResposta: " e.Message "`nJSON:`n" UnicodeHelper.Decode(nextJson) "`n", A_ScriptDir "\debug.log")
 					}
 				}
 				ListLines(1)
@@ -562,6 +567,90 @@ Persistent
 		}
 	}
 
+	ProcessaListarClientes(respItem) {
+		global clientesMap
+		clientesMap.Clear()
+		if (!respItem.Has("viaweb"))
+			return
+
+		for vw in respItem["viaweb"] {
+			servidorNome  := vw.Has("nome")  ? vw["nome"]  : ""
+			servidorPorta := vw.Has("porta") ? vw["porta"] : ""
+
+			if (vw.Has("cliente")) {
+				for cli in vw["cliente"] {
+					try {
+						id := cli.Has("idISEP") ? cli["idISEP"] : ""
+						if (id = "")
+							continue
+
+						; senhas: até 3 na ordem recebida
+						pwd1 := "", pwd2 := "", pwd3 := ""
+						pwd1Gen := "", pwd2Gen := "", pwd3Gen := ""
+						if (cli.Has("senhas") && Type(cli["senhas"]) = "Array") {
+							idx := 1
+							for s in cli["senhas"] {
+								if (idx = 1) {
+									pwd1    := s.Has("senha")   ? s["senha"]   : ""
+									pwd1Gen := s.Has("geracao") ? s["geracao"] : ""
+								} else if (idx = 2) {
+									pwd2    := s.Has("senha")   ? s["senha"]   : ""
+									pwd2Gen := s.Has("geracao") ? s["geracao"] : ""
+								} else if (idx = 3) {
+									pwd3    := s.Has("senha")   ? s["senha"]   : ""
+									pwd3Gen := s.Has("geracao") ? s["geracao"] : ""
+								} else {
+									break
+								}
+								idx++
+							}
+						}
+
+						; meio: pega o primeiro, se existir
+						offlineTypical := "", authorization := "", onlineTs := "", offlineTs := ""
+						protection := "", delay := "", ping := "", ip := ""
+						if (cli.Has("meio") && Type(cli["meio"]) = "Array" && cli["meio"].Length >= 1) {
+							m := cli["meio"][1]
+							offlineTypical := m.Has("offlineTipico") ? m["offlineTipico"] : ""
+							authorization  := m.Has("autorizacao")   ? m["autorizacao"]   : ""
+							onlineTs       := m.Has("online")        ? m["online"]        : ""
+							offlineTs      := m.Has("offline")       ? m["offline"]       : ""
+							protection     := m.Has("protecao")      ? m["protecao"]      : ""
+							delay          := m.Has("atraso")        ? m["atraso"]        : ""
+							ping           := m.Has("ping")          ? m["ping"]          : ""
+							ip             := m.Has("ip")            ? m["ip"]            : ""
+						}
+
+						onlineFlag := cli.Has("online") ? cli["online"] : ""
+
+						clientesMap[id] := Map()
+						clientesMap[id].password1 := pwd1
+						clientesMap[id].password2 := pwd2
+						clientesMap[id].password3 := pwd3
+						clientesMap[id].password1Generated := StrReplace(pwd1Gen, '\', '')
+						clientesMap[id].password2Generated := StrReplace(pwd2Gen, '\', '')
+						clientesMap[id].password3Generated := StrReplace(pwd3Gen, '\', '')
+						clientesMap[id].offlineTypical := offlineTypical
+						clientesMap[id].authorization := authorization
+						clientesMap[id].onlineTimestamp  := (onlineTs  = "" ? "" : UnixToDateTime(onlineTs))
+						clientesMap[id].offlineTimestamp := (offlineTs = "" ? "" : UnixToDateTime(offlineTs))
+						clientesMap[id].protection := protection
+						clientesMap[id].delay := delay
+						clientesMap[id].ping := ping
+						clientesMap[id].ip := ip
+						clientesMap[id].online := onlineFlag
+
+					} catch Error as e {
+						AddHistorico("❌ Erro ao processar cliente: " (cli.Has("idISEP") ? cli["idISEP"] : "?") "`r`n`t" e.Message "`r`n`tLine: " e.Line, CORES.ERRO)
+						continue
+					}
+				}
+			}
+			total := vw.Has("cliente") ? vw["cliente"].Length : 0
+			AddHistorico("📋 Clientes armazenados: " total, CORES.INFO)
+		}
+	}
+
 	TratarResp(respObj) {
 		global client
 		for index, item in respObj {
@@ -569,6 +658,30 @@ Persistent
 				continue
 			if(item.Capacity = 0)
 				continue
+
+			; Tratamento de erros retornados em "resp"
+			if(item.Has("erro")) {
+				errCode := item["erro"]
+				desc    := item.Has("descricao") ? item["descricao"] : "Erro"
+				idStr   := item.Has("id") ? item["id"] : ""
+				p1      := item.Has("param1") ? item["param1"] : ""
+				p2      := item.Has("param2") ? item["param2"] : ""
+
+				message := "❌ Erro (id: " idStr "): [" errCode "] " desc
+				if (p1 != "")
+					message .= "`r`n`tparam1: " p1
+				if (p2 != "")
+					message .= "`r`n`tparam2: " p2
+				AddHistorico(message, CORES.ERRO)
+				continue
+			}
+
+			; Tratamento de listarClientes (viaweb -> cliente)
+			if(item.Has("viaweb")) {
+				ProcessaListarClientes(item)
+				continue
+			}
+
 			if(respObj.Has("oper")) {
 				if(InStr(respObj['oper'][1]['acao'], 'evento') && InStr(respObj['oper'][1]['id'], '-evento')) {
 					ResponderEvento(respObj['oper'][1]['id'])
@@ -803,6 +916,12 @@ Persistent
 		ListLines(1)
 	}
 
+	UnixToDateTime(ts) {
+		; ts: segundos desde 1970-01-01 00:00:00 UTC
+		base := 19700101000000  ; YYYYMMDDhhmmss
+
+		return DateAdd(base, ts, "s")  ; retorna YYYYMMDDhhmmss
+	}
 ; ===================== INTERFACE GRÁFICA =====================
 
 	CriarGUI() {
@@ -968,7 +1087,9 @@ Persistent
 	}
 
 	F4:: {
-		ZonasBtn(0, 0)
+		Global client
+		;ZonasBtn(0, 0)
+		client.ListarClientes()
 	}
 
 	F1:: {
