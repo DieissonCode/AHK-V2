@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.3
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.4
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -11,6 +11,7 @@
 #SingleInstance Force
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\ComboBoxFilter.ahk
+
 Persistent
 
 ; ===================== CONFIGURAÇÃO =====================
@@ -81,68 +82,100 @@ Persistent
 
 ; ===================== CLASSES =====================
 
-	; Classe base com os comandos do protocolo VIAWEB
-	class Viaweb {
-		GetCommandId() {
-			this.commandId++
-			return SubStr(SysGetIPAddresses()[1], -3) this.commandId
-		}
+		; Classe base com os comandos do protocolo VIAWEB
+		class Viaweb {
+			GetCommandId() {
+				this.commandId++
+				return SubStr(SysGetIPAddresses()[1], -3) this.commandId
+			}
 
-		Identificar(nome := "AHK Monitor") {
-			identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
-			this.Send(identJson)
-		}
+			Identificar(nome := "AHK Monitor") {
+				identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
+				this.Send(identJson)
+			}
 
-		Armar(idISEP, senha, particoes, forcado := 0) {
-			idClean := RegExReplace(idISEP, "\D")
-			if (idClean = "")
-				idClean := idISEP
-			cmdId := this.GetCommandId()
-			if (Type(particoes) != "Array")
-				particoes := [particoes]
-			particoesStr := "[" JoinArray(particoes, ",") "]"
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
-			this.StatusParticoes(idISEP)
-			this.StatusZonas(idISEP)
-		}
+			Armar(idISEP, senha, particoes, forcado := 0) {
+				idClean := RegExReplace(idISEP, "\D")
+				if (idClean = "")
+					idClean := idISEP
+				cmdId := this.GetCommandId()
+				if (Type(particoes) != "Array")
+					particoes := [particoes]
+				particoesStr := "[" JoinArray(particoes, ",") "]"
+				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
+				this.Send(cmdObj)
+				AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
+				this.StatusParticoes(idISEP)
+				this.StatusZonas(idISEP)
+			}
 
-		Desarmar(idISEP, senha, particoes) {
-			idClean := RegExReplace(idISEP, "\D")
-			if (idClean = "")
-				idClean := idISEP
-			cmdId := this.GetCommandId()
-			if (Type(particoes) != "Array")
-				particoes := [particoes]
-			particoesStr := "[" JoinArray(particoes, ",") "]"
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
-			this.StatusParticoes(idISEP)
-			this.StatusZonas(idISEP)
-		}
+			Desarmar(idISEP, senha, particoes) {
+				idClean := RegExReplace(idISEP, "\D")
+				if (idClean = "")
+					idClean := idISEP
+				cmdId := this.GetCommandId()
+				if (Type(particoes) != "Array")
+					particoes := [particoes]
+				particoesStr := "[" JoinArray(particoes, ",") "]"
+				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
+				this.Send(cmdObj)
+				AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
+				this.StatusParticoes(idISEP)
+				this.StatusZonas(idISEP)
+			}
 
-		StatusParticoes(idISEP) {
-			idClean := RegExReplace(idISEP, "\D")
-			if (idClean = "")
-				idClean := idISEP
-			cmdId := this.GetCommandId()
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"particoes"}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId "`tIdIsep: " idClean, CORES.INFO)
-		}
+			StatusParticoes(idISEP) {
+				idClean := RegExReplace(idISEP, "\D")
+				if (idClean = "")
+					idClean := idISEP
+				cmdId := this.GetCommandId()
+				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"particoes"}]}]}'
+				this.Send(cmdObj)
+				AddHistorico("📋 Consultando partições...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
+			}
 
-		StatusZonas(idISEP) {
-			idClean := RegExReplace(idISEP, "\D")
-			if (idClean = "")
-				idClean := idISEP
-			cmdId := this.GetCommandId()
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"zonas"}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("📋 Consultando zonas...`tcmdId: " cmdId "`tIdIsep: " idClean, CORES.INFO)
+			StatusZonas(idISEP) {
+				idClean := RegExReplace(idISEP, "\D")
+				if (idClean = "")
+					idClean := idISEP
+				cmdId := this.GetCommandId()
+				cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"zonas"}]}]}'
+				this.Send(cmdObj)
+				AddHistorico("📋 Consultando zonas...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
+			}
+
+			ListarClientes(portas := "", nomes := "", idISEPs := "") {
+				cmdId := this.GetCommandId()
+
+				oper := Map()
+				oper["id"]   := cmdId
+				oper["acao"] := "listarClientes"
+
+				if (portas != "") {
+					if (Type(portas) != "Array")
+						portas := [portas]
+					oper["porta"] := portas
+				}
+
+				if (nomes != "") {
+					if (Type(nomes) != "Array")
+						nomes := [nomes]
+					oper["nome"] := nomes
+				}
+
+				if (idISEPs != "") {
+					if (Type(idISEPs) != "Array")
+						idISEPs := [idISEPs]
+					oper["idISEP"] := idISEPs
+				}
+
+				payload := Map("oper", [oper])
+				jsonStr := JSON.stringify(payload, , "")
+				this.Send(jsonStr)
+				AddHistorico("📋 Listar clientes enviado.`r`n`t`tcmdId: " cmdId, CORES.INFO)
+
+			}
 		}
-	}
 
 	; Cliente: gerencia socket/cripto e herda os comandos do protocolo
 	class ViawebClient extends Viaweb {
@@ -223,7 +256,7 @@ Persistent
 		Poll() {
 			if (!this.connected)
 				return
-
+			ListLines(0)
 			Loop {
 				recvBuf := Buffer(65536)
 				received := DllCall("ws2_32\recv", "Ptr", this.socket, "Ptr", recvBuf, "Int", recvBuf.Size, "Int", 0, "Int")
@@ -252,6 +285,7 @@ Persistent
 				global recvEncryptedAccum
 				recvEncryptedAccum := CombineBuffers(recvEncryptedAccum, chunk)
 			}
+			ListLines(1)
 
 			global recvEncryptedAccum, recvPlainBuffer
 			if (!recvEncryptedAccum.Size)
@@ -260,14 +294,17 @@ Persistent
 			fullBlocksBytes := Floor(recvEncryptedAccum.Size / 16) * 16
 			if (fullBlocksBytes > 0) {
 				procBuf := Buffer(fullBlocksBytes)
+				ListLines(0)
 				Loop fullBlocksBytes
 					NumPut("UChar", NumGet(recvEncryptedAccum, A_Index-1, "UChar"), procBuf, A_Index-1)
-
+					ListLines(1)
 				leftoverSize := recvEncryptedAccum.Size - fullBlocksBytes
 				if (leftoverSize > 0) {
 					leftover := Buffer(leftoverSize)
+					ListLines(0)
 					Loop leftoverSize
 						NumPut("UChar", NumGet(recvEncryptedAccum, fullBlocksBytes + A_Index-1, "UChar"), leftover, A_Index-1)
+					ListLines(1)
 					recvEncryptedAccum := leftover
 				} else {
 					recvEncryptedAccum := Buffer(0)
@@ -280,7 +317,7 @@ Persistent
 					FileAppend("[DEBUG] Erro decrypt: " e.Message "`n", A_ScriptDir "\debug.log")
 					return
 				}
-
+				ListLines(0)
 				while (true) {
 					nextJson := ExtractNextJsonFromBuffer()
 					if (!nextJson)
@@ -291,6 +328,7 @@ Persistent
 						FileAppend("[DEBUG] Erro ProcessarResposta: " e.Message "`nJSON:`n" nextJson "`n", A_ScriptDir "\debug.log")
 					}
 				}
+				ListLines(1)
 			}
 		}
 	}
@@ -342,14 +380,16 @@ Persistent
 				paddedSize := 16
 
 			paddedData := Buffer(paddedSize, 0)
+			ListLines(0)
 			Loop plainBytes.Size
 				NumPut("UChar", NumGet(plainBytes, A_Index-1, "UChar"), paddedData, A_Index-1)
-
+			ListLines(1)
 			encrypted := Buffer(paddedSize)
 			ivCopy := Buffer(16)
+			ListLines(0)
 			Loop 16
 				NumPut("UChar", NumGet(this.ivSend, A_Index-1, "UChar"), ivCopy, A_Index-1)
-
+			ListLines(1)
 			bytesWritten := 0
 			result := DllCall("bcrypt\BCryptEncrypt"
 				, "Ptr", this.hKey
@@ -361,10 +401,10 @@ Persistent
 				, "UInt", 0)
 			if (result != 0)
 				throw Error("BCryptEncrypt falhou: " Format("0x{:08X}", result))
-
+			ListLines(0)
 			Loop 16
 				NumPut("UChar", NumGet(encrypted, paddedSize-16 + A_Index-1, "UChar"), this.ivSend, A_Index-1)
-
+			ListLines(1)
 			return encrypted
 		}
 
@@ -374,14 +414,16 @@ Persistent
 				throw Error("Dados criptografados devem ter tamanho múltiplo de 16")
 
 			lastBlock := Buffer(16)
+			ListLines(0)
 			Loop 16
 				NumPut("UChar", NumGet(encryptedBuffer, dataSize-16 + A_Index-1, "UChar"), lastBlock, A_Index-1)
-
+			ListLines(1)
 			decrypted := Buffer(dataSize)
 			ivCopy := Buffer(16)
+			ListLines(0)
 			Loop 16
 				NumPut("UChar", NumGet(this.ivRecv, A_Index-1, "UChar"), ivCopy, A_Index-1)
-
+			ListLines(1)
 			bytesWritten := 0
 			result := DllCall("bcrypt\BCryptDecrypt"
 				, "Ptr", this.hKey
@@ -393,9 +435,10 @@ Persistent
 				, "UInt", 0)
 			if (result != 0)
 				throw Error("BCryptDecrypt falhou: " Format("0x{:08X}", result))
-
+			ListLines(0)
 			Loop 16
 				NumPut("UChar", NumGet(lastBlock, A_Index-1, "UChar"), this.ivRecv, A_Index-1)
+			ListLines(1)
 
 			endPos := bytesWritten
 			while (endPos > 0 && NumGet(decrypted, endPos-1, "UChar") = 0)
@@ -408,10 +451,12 @@ Persistent
 			hexStr := StrReplace(hexStr, " ", "")
 			len := StrLen(hexStr) // 2
 			buf := Buffer(len)
+			ListLines(0)
 			Loop len {
 				byte := "0x" SubStr(hexStr, (A_Index - 1) * 2 + 1, 2)
 				NumPut("UChar", Integer(byte), buf, A_Index-1)
 			}
+			ListLines(1)
 			return buf
 		}
 
@@ -428,12 +473,14 @@ Persistent
 	JoinArray(arr, sep := ",") {
 		out := ""
 		i := 1
+		ListLines(0)
 		Loop arr.Length {
 			if (i > 1)
 				out := out sep
 			out := out arr[i]
 			i++
 		}
+		ListLines(1)
 		return out
 	}
 
@@ -442,12 +489,16 @@ Persistent
 		newBuf := Buffer(newSize)
 		idx := 0
 		if (b1.Size) {
+			ListLines(0)
 			Loop b1.Size
 				NumPut("UChar", NumGet(b1, A_Index-1, "UChar"), newBuf, idx++)
+			ListLines(1)
 		}
 		if (b2.Size) {
+			ListLines(0)
 			Loop b2.Size
 				NumPut("UChar", NumGet(b2, A_Index-1, "UChar"), newBuf, idx++)
+			ListLines(1)
 		}
 		return newBuf
 	}
@@ -484,7 +535,7 @@ Persistent
 		tamper		:= resposta['tamper']
 		temporizando:= resposta['temporizando']
 		zonasStatus[pos] := Map('aberta', aberta, 'batlow', batlow, 'disparada', disparada, 'inibida', inibida, 'tamper', tamper, 'temporizando', temporizando)
-		AddHistorico("✅ Status do sensor " pos " atualizado`r`n`tAberto: " aberta " | Disparado: " disparada " | Inibida: " inibida " | Tamper: " tamper " | Temporizando: " temporizando, CORES.SUCESSO)
+		AddHistorico("✅ Status do sensor " pos " atualizado`r`n`tAberto:`t`t" aberta "`r`n`tDisparado:`t" disparada "`r`n`tInibida:`t`t" inibida "`r`n`tTamper:`t`t" tamper "`r`n`tTemporizando:`t" temporizando, CORES.SUCESSO)
 	}
 
 	ResponderEvento(id) {
@@ -497,7 +548,7 @@ Persistent
 		response := json.parse(jsonStr)
 		if	IsSet(response) && isObject(response) {
 			if(response.Has("a")) {
-				AddHistorico("ℹ️ Autenticado.`tEventos pendentes: " (response.Has("eventosPendentes") ? response["eventosPendentes"] : "0"), CORES.INFO)
+				AddHistorico("ℹ️ Autenticado.`r`n`t`tEventos pendentes: " (response.Has("eventosPendentes") ? response["eventosPendentes"] : "0"), CORES.INFO)
 				return
 			}
 
@@ -523,15 +574,18 @@ Persistent
 					ResponderEvento(respObj['oper'][1]['id'])
 					continue
 				}
+				ListLines(0)
 				Loop respObj['oper'].Capacity
 					for operIndex, operItem in respObj['oper'][A_Index] {
 						OutputDebug(A_Now "`tOper " A_Index ": " operIndex " = " respObj['oper'][A_Index][operIndex])
 					}
+				ListLines(1)
 			}
 
 			if(item.Has("resposta")) {
 				resposta := item['resposta']
-				if(resposta.HasProp('Capacity'))
+				if(resposta.HasProp('Capacity'))	{
+					ListLines(0)
 					Loop resposta.Length {
 						if(resposta[A_Index].Has("cmd")) {
 							cmd := resposta[A_Index]['cmd']
@@ -544,6 +598,8 @@ Persistent
 							
 						}
 					}
+					ListLines(1)
+				}
 				ResponderEvento(item['id'])
 			}
 		}
@@ -557,6 +613,7 @@ Persistent
 
 		start := 0
 		len := StrLen(s)
+		ListLines(0)
 		Loop len {
 			ch := SubStr(s, A_Index, 1)
 			if (ch = "{" || ch = "[") {
@@ -564,6 +621,7 @@ Persistent
 				break
 			}
 		}
+		ListLines(1)
 		if (!start) {
 			recvPlainBuffer := ""
 			return ""
@@ -573,7 +631,7 @@ Persistent
 		depth := 0
 		inStr := false
 		i := 0
-
+		ListLines(0)
 		while (i < len) {
 			i++
 			ch := SubStr(s, i, 1)
@@ -606,6 +664,7 @@ Persistent
 				}
 			}
 		}
+		ListLines(1)
 		return ""
 	}
 
@@ -692,7 +751,9 @@ Persistent
 	AtualizarGUI() {
 		global guiHwnd, particionesStatus, historicoMensagens, ultimaAtualizacao, statusConexao, colorConexao, client
 		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico, guiCtrlSensores
-
+		static historicoMensagensLocal := Map()
+		if(historicoMensagensLocal.HasOwnProp("Length") = false)
+			historicoMensagensLocal.Length := 0
 		if (!guiHwnd)
 			return
 
@@ -709,7 +770,7 @@ Persistent
 
 		ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
 		try guiCtrlTimestamp.Text := "Última atualização:`t" ultimaAtualizacao
-
+		ListLines(0)
 		Loop 8 {
 			status := ObterStatusParticao(A_Index)
 			guiCtrlParticoes[A_Index].Opt("-Redraw")
@@ -724,18 +785,22 @@ Persistent
 			guiCtrlSensores[A_Index].Opt("+Background" status.cor)
 		}
 
-		;historicoText := ""
-		;Loop historicoMensagens.Length {
-		;	item := historicoMensagens[A_Index]
-		;	historicoText := historicoText item.timestamp " - " item.message "`r`n"
-		;}
-		;try guiCtrlHistorico.Text := historicoText
+		if(IsObject(historicoMensagensLocal) && historicoMensagensLocal.Length != historicoMensagens.Length)	{
+			historicoText := ""
+			Loop historicoMensagens.Length {
+				item := historicoMensagens[A_Index]
+				historicoText := historicoText item.timestamp " - " item.message "`r`n"
+			}
+			try guiCtrlHistorico.Text := historicoText
+			historicoMensagensLocal := historicoMensagens.Clone()
+		}
 
 		Loop 32 {
 			if(A_Index < 9)
 				guiCtrlParticoes[A_Index].Opt("+Redraw")
 			guiCtrlSensores[A_Index].Opt("+Redraw")
 		}
+		ListLines(1)
 	}
 
 ; ===================== INTERFACE GRÁFICA =====================
@@ -824,7 +889,7 @@ Persistent
 		try {
 			client.Armar(ISEP_DEFAULT, SENHA_DEFAULT, [1])
 		} catch Error as e {
-			AddHistorico("❌ Erro: " e.Message, CORES.ERRO)
+			AddHistorico("❌ Erro: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
 		}
 	}
 
@@ -837,7 +902,7 @@ Persistent
 		try {
 			client.Desarmar(ISEP_DEFAULT, SENHA_DEFAULT, [1])
 		} catch Error as e {
-			AddHistorico("❌ Erro: " e.Message, CORES.ERRO)
+			AddHistorico("❌ Erro: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
 		}
 	}
 
@@ -850,7 +915,7 @@ Persistent
 		try {
 			client.StatusParticoes(RegExReplace(ISEP_DEFAULT, "\D"))
 		} catch Error as e {
-			AddHistorico("❌ Erro: " e.Message, CORES.ERRO)
+			AddHistorico("❌ Erro: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
 		}
 	}
 
@@ -863,7 +928,7 @@ Persistent
 		try {
 			client.StatusZonas(ISEP_DEFAULT)
 		} catch Error as e {
-			AddHistorico("❌ Erro: " e.Message, CORES.ERRO)
+			AddHistorico("❌ Erro: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
 		}
 	}
 
@@ -872,7 +937,7 @@ Persistent
 		idClean := RegExReplace(GuiCtrlObj.Text, "\D")
 		ISEP_DEFAULT := Format('{:04}', idClean)
 		AddHistorico("📝 ISEP alterado para: " ISEP_DEFAULT, CORES.INFO)
-}
+	}
 ; ===================== INICIALIZAÇÃO ======================
 
 	try {
@@ -888,10 +953,12 @@ Persistent
 		
 		SetTimer(PollTimer, POLL_INTERVAL_MS)
 		SetTimer(AtualizarGUI, GUI_UPDATE_MS)
-		
+
+		client.ListarClientes()
+
 	} catch Error as e {
-		AddHistorico("❌ Erro na inicialização: " e.Message, CORES.ERRO)
-		MsgBox("Erro: " e.Message, "VIAWEB Monitor", "Icon!")
+		AddHistorico("❌ Erro na inicialização: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
+		MsgBox("Erro: " e.Message "`n`t" e.Extra "`nLinha - " e.Line, "VIAWEB Monitor", "Icon!")
 	}
 
 ; ===================== HOTKEYS =====================
