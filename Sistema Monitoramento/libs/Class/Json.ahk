@@ -6,7 +6,6 @@
  * @version 1.0.7
  */
 
-ListLines(0)
 if (IsSet(__isInCluded))
 	return
 #Requires AutoHotkey v2.0
@@ -182,5 +181,3 @@ class JSON {
 		}
 	}
 }
-
-ListLines(1)
