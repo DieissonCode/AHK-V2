@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.1
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.3
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -75,9 +75,77 @@ Persistent
 	global guiCtrlSensores := []
 	global guiCtrlHistorico := 0
 
+	; Buffers para recepção
+	global recvEncryptedAccum := Buffer(0)   ; acumula ciphertext entre recvs
+	global recvPlainBuffer    := ""          ; acumula plaintext (JSON não processado)
+
 ; ===================== CLASSES =====================
 
-	class ViawebClient {
+	; Classe base com os comandos do protocolo VIAWEB
+	class Viaweb {
+		GetCommandId() {
+			this.commandId++
+			return SubStr(SysGetIPAddresses()[1], -3) this.commandId
+		}
+
+		Identificar(nome := "AHK Monitor") {
+			identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
+			this.Send(identJson)
+		}
+
+		Armar(idISEP, senha, particoes, forcado := 0) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			if (Type(particoes) != "Array")
+				particoes := [particoes]
+			particoesStr := "[" JoinArray(particoes, ",") "]"
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
+			this.StatusParticoes(idISEP)
+			this.StatusZonas(idISEP)
+		}
+
+		Desarmar(idISEP, senha, particoes) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			if (Type(particoes) != "Array")
+				particoes := [particoes]
+			particoesStr := "[" JoinArray(particoes, ",") "]"
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
+			this.StatusParticoes(idISEP)
+			this.StatusZonas(idISEP)
+		}
+
+		StatusParticoes(idISEP) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"particoes"}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId "`tIdIsep: " idClean, CORES.INFO)
+		}
+
+		StatusZonas(idISEP) {
+			idClean := RegExReplace(idISEP, "\D")
+			if (idClean = "")
+				idClean := idISEP
+			cmdId := this.GetCommandId()
+			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"zonas"}]}]}'
+			this.Send(cmdObj)
+			AddHistorico("📋 Consultando zonas...`tcmdId: " cmdId "`tIdIsep: " idClean, CORES.INFO)
+		}
+	}
+
+	; Cliente: gerencia socket/cripto e herda os comandos do protocolo
+	class ViawebClient extends Viaweb {
 		socket := 0
 		crypto := 0
 		connected := false
@@ -117,7 +185,6 @@ Persistent
 			if (result = -1)
 				throw Error("Falha ao conectar: " DllCall("ws2_32\WSAGetLastError", "Int"))
 
-			; colocar socket em non-blocking (FIONBIO)
 			modeBuf := Buffer(4)
 			NumPut("UInt", 1, modeBuf, 0) ; 1 = non-blocking
 			res := DllCall("ws2_32\ioctlsocket", "Ptr", this.socket, "UInt", 0x8004667E, "Ptr", modeBuf)
@@ -157,82 +224,74 @@ Persistent
 			if (!this.connected)
 				return
 
-			recvBuf := Buffer(8192)
-			received := DllCall("ws2_32\recv", "Ptr", this.socket, "Ptr", recvBuf, "Int", 8192, "Int", 0, "Int")
-				;non-blovking retorna -1 se não houver dados
-			if (received < 0) {
-				err := DllCall("ws2_32\WSAGetLastError", "Int")
-				FileAppend("[DEBUG] WSA Error: " err "`n", A_ScriptDir "\debug.log")
-				if (err = 10035)
-					return
-
-				if (err = 10054) {
-					AddHistorico("⚠️ Conexão fechada.", CORES.ERRO)
+			Loop {
+				recvBuf := Buffer(65536)
+				received := DllCall("ws2_32\recv", "Ptr", this.socket, "Ptr", recvBuf, "Int", recvBuf.Size, "Int", 0, "Int")
+				if (received < 0) {
+					err := DllCall("ws2_32\WSAGetLastError", "Int")
+					if (err = 10035)
+						break
+					FileAppend("[DEBUG] WSA Error: " err "`n", A_ScriptDir "\debug.log")
+					if (err = 10054) {
+						AddHistorico("⚠️ Conexão fechada.", CORES.ERRO)
+						this.Disconnect()
+						return
+					}
+					break
+				}
+				if (received = 0) {
+					AddHistorico("⚠️ Conexão fechada pelo servidor.", CORES.ERRO)
 					this.Disconnect()
 					return
 				}
-				return
+
+				chunk := Buffer(received)
+				Loop received
+					NumPut("UChar", NumGet(recvBuf, A_Index-1, "UChar"), chunk, A_Index-1)
+
+				global recvEncryptedAccum
+				recvEncryptedAccum := CombineBuffers(recvEncryptedAccum, chunk)
 			}
 
-			if (received = 0) {
-				AddHistorico("⚠️ Conexão fechada pelo servidor.", CORES.ERRO)
-				this.Disconnect()
+			global recvEncryptedAccum, recvPlainBuffer
+			if (!recvEncryptedAccum.Size)
 				return
+
+			fullBlocksBytes := Floor(recvEncryptedAccum.Size / 16) * 16
+			if (fullBlocksBytes > 0) {
+				procBuf := Buffer(fullBlocksBytes)
+				Loop fullBlocksBytes
+					NumPut("UChar", NumGet(recvEncryptedAccum, A_Index-1, "UChar"), procBuf, A_Index-1)
+
+				leftoverSize := recvEncryptedAccum.Size - fullBlocksBytes
+				if (leftoverSize > 0) {
+					leftover := Buffer(leftoverSize)
+					Loop leftoverSize
+						NumPut("UChar", NumGet(recvEncryptedAccum, fullBlocksBytes + A_Index-1, "UChar"), leftover, A_Index-1)
+					recvEncryptedAccum := leftover
+				} else {
+					recvEncryptedAccum := Buffer(0)
+				}
+
+				try {
+					plaintext := this.crypto.Decrypt(procBuf)
+					recvPlainBuffer := recvPlainBuffer . plaintext
+				} catch Error as e {
+					FileAppend("[DEBUG] Erro decrypt: " e.Message "`n", A_ScriptDir "\debug.log")
+					return
+				}
+
+				while (true) {
+					nextJson := ExtractNextJsonFromBuffer()
+					if (!nextJson)
+						break
+					try {
+						ProcessarResposta(nextJson)
+					} catch Error as e {
+						FileAppend("[DEBUG] Erro ProcessarResposta: " e.Message "`nJSON:`n" nextJson "`n", A_ScriptDir "\debug.log")
+					}
+				}
 			}
-
-			FileAppend("[DEBUG] Recebidos " received " bytes`n", A_ScriptDir "\debug.log")
-
-			encrypted := Buffer(received)
-			Loop received
-				NumPut("UChar", NumGet(recvBuf, A_Index-1, "UChar"), encrypted, A_Index-1)
-
-			message := this.crypto.Decrypt(encrypted)
-			FileAppend("[DEBUG] JSON: " SubStr(message, 1, 100) "`n", A_ScriptDir "\debug.log")
-			ProcessarResposta(message)
-		}
-
-		GetCommandId() {
-			this.commandId++
-			return SubStr(SysGetIPAddresses()[1], -3) this.commandId
-		}
-
-		Identificar(nome := "AHK Monitor") {
-			identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
-			this.Send(identJson)
-		}
-
-		Armar(idISEP, senha, particoes, forcado := 0) {
-			cmdId := this.GetCommandId()
-			if (Type(particoes) != "Array")
-				particoes := [particoes]
-			particoesStr := "[" JoinArray(particoes, ",") "]"
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
-		}
-
-		Desarmar(idISEP, senha, particoes) {
-			cmdId := this.GetCommandId()
-			if (Type(particoes) != "Array")
-				particoes := [particoes]
-			particoesStr := "[" JoinArray(particoes, ",") "]"
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"desarmar","password":"' senha ',"particoes":' particoesStr '}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
-		}
-
-		StatusParticoes(idISEP) {
-			cmdId := this.GetCommandId()
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"particoes"}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("📋 Consultando partições...`tcmdId: " cmdId "`tIdIsep: " idISEP, CORES.INFO)
-		}
-
-		StatusZonas(idISEP) {
-			cmdId := this.GetCommandId()
-			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idISEP '","comando":[{"cmd":"zonas"}]}]}'
-			this.Send(cmdObj)
-			AddHistorico("📋 Consultando zonas...`tcmdId: " cmdId "`tIdIsep: " idISEP, CORES.INFO)
 		}
 	}
 
@@ -291,7 +350,15 @@ Persistent
 			Loop 16
 				NumPut("UChar", NumGet(this.ivSend, A_Index-1, "UChar"), ivCopy, A_Index-1)
 
-			result := DllCall("bcrypt\BCryptEncrypt", "Ptr", this.hKey, "Ptr", paddedData, "UInt", paddedSize, "Ptr", 0, "Ptr", ivCopy, "UInt", 16, "Ptr", encrypted, "UInt", paddedSize, "UInt*", &bytesWritten := 0, "UInt", 0, "UInt")
+			bytesWritten := 0
+			result := DllCall("bcrypt\BCryptEncrypt"
+				, "Ptr", this.hKey
+				, "Ptr", paddedData, "UInt", paddedSize
+				, "Ptr", 0
+				, "Ptr", ivCopy, "UInt", 16
+				, "Ptr", encrypted, "UInt", encrypted.Size
+				, "UInt*", &bytesWritten
+				, "UInt", 0)
 			if (result != 0)
 				throw Error("BCryptEncrypt falhou: " Format("0x{:08X}", result))
 
@@ -315,24 +382,25 @@ Persistent
 			Loop 16
 				NumPut("UChar", NumGet(this.ivRecv, A_Index-1, "UChar"), ivCopy, A_Index-1)
 
-			result := DllCall("bcrypt\BCryptDecrypt", "Ptr", this.hKey, "Ptr", encryptedBuffer, "UInt", dataSize, "Ptr", 0, "Ptr", ivCopy, "UInt", 16, "Ptr", decrypted, "UInt", dataSize, "UInt*", &bytesWritten := 0, "UInt", 0, "UInt")
+			bytesWritten := 0
+			result := DllCall("bcrypt\BCryptDecrypt"
+				, "Ptr", this.hKey
+				, "Ptr", encryptedBuffer, "UInt", dataSize
+				, "Ptr", 0
+				, "Ptr", ivCopy, "UInt", 16
+				, "Ptr", decrypted, "UInt", decrypted.Size
+				, "UInt*", &bytesWritten
+				, "UInt", 0)
 			if (result != 0)
 				throw Error("BCryptDecrypt falhou: " Format("0x{:08X}", result))
 
 			Loop 16
 				NumPut("UChar", NumGet(lastBlock, A_Index-1, "UChar"), this.ivRecv, A_Index-1)
 
-			endPos := decrypted.Size
-			Loop decrypted.Size {
-				idx := decrypted.Size - A_Index
-				b := NumGet(decrypted, idx, "UChar")
-				if (b = 0x7D || b = 0x5D) {
-					endPos := idx + 1
-					break
-				}
-				if (b != 0)
-					break
-			}
+			endPos := bytesWritten
+			while (endPos > 0 && NumGet(decrypted, endPos-1, "UChar") = 0)
+				endPos--
+
 			return StrGet(decrypted, endPos, "UTF-8")
 		}
 
@@ -367,6 +435,21 @@ Persistent
 			i++
 		}
 		return out
+	}
+
+	CombineBuffers(b1, b2) {
+		newSize := b1.Size + b2.Size
+		newBuf := Buffer(newSize)
+		idx := 0
+		if (b1.Size) {
+			Loop b1.Size
+				NumPut("UChar", NumGet(b1, A_Index-1, "UChar"), newBuf, idx++)
+		}
+		if (b2.Size) {
+			Loop b2.Size
+				NumPut("UChar", NumGet(b2, A_Index-1, "UChar"), newBuf, idx++)
+		}
+		return newBuf
 	}
 
 	AddHistorico(message, color := "FFFFFF") {
@@ -466,6 +549,66 @@ Persistent
 		}
 	}
 
+	ExtractNextJsonFromBuffer() {
+		global recvPlainBuffer
+		s := recvPlainBuffer
+		if (!s)
+			return ""
+
+		start := 0
+		len := StrLen(s)
+		Loop len {
+			ch := SubStr(s, A_Index, 1)
+			if (ch = "{" || ch = "[") {
+				start := A_Index
+				break
+			}
+		}
+		if (!start) {
+			recvPlainBuffer := ""
+			return ""
+		}
+		s := SubStr(s, start)
+		len := StrLen(s)
+		depth := 0
+		inStr := false
+		i := 0
+
+		while (i < len) {
+			i++
+			ch := SubStr(s, i, 1)
+
+			if (ch = '"') {
+				bs := 0, j := i-1
+				while (j >= 1 && SubStr(s, j, 1) = "\") {
+					bs++, j--
+				}
+				if (Mod(bs, 2) = 0)
+					inStr := !inStr
+				continue
+			}
+			if (inStr)
+				continue
+
+			if (ch = "{" || ch = "[")
+				depth++
+			else if (ch = "}" || ch = "]") {
+				depth--
+				if (depth = 0) {
+					candidate := SubStr(s, 1, i)
+					try {
+						_ := json.parse(candidate)
+						recvPlainBuffer := SubStr(recvPlainBuffer, start + i)
+						return candidate
+					} catch Error as e {
+						continue
+					}
+				}
+			}
+		}
+		return ""
+	}
+
 	PollTimer() {
 		global client
 		if (client && IsObject(client) && client.connected) {
@@ -519,7 +662,6 @@ Persistent
 		armado := dados["armado"]
 		disparado := dados["disparado"]
 
-		; Lógica de cores e textos
 		if (disparado = "1") {
 			return {
 				armado: armado,
@@ -551,65 +693,49 @@ Persistent
 		global guiHwnd, particionesStatus, historicoMensagens, ultimaAtualizacao, statusConexao, colorConexao, client
 		global guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlHistorico, guiCtrlSensores
 
-		; Verificar se a GUI está criada
-			if (!guiHwnd)
-				return
+		if (!guiHwnd)
+			return
 
-		; Verificar conexão
-			if (!client || !IsObject(client)) {
-				statusConexao := "🔴 DESCONECTADO"
-				colorConexao := CORES.DESCONECTADO
-				try {
-					guiCtrlStatusConexao.Text := statusConexao
-				}
-				return
-			}
+		if (!client || !IsObject(client)) {
+			statusConexao := "🔴 DESCONECTADO"
+			colorConexao := CORES.DESCONECTADO
+			try guiCtrlStatusConexao.Text := statusConexao
+			return
+		}
 
-		; Atualizar status de conexão
-			statusConexao := client.connected ? "🟢 CONECTADO" : "🔴 DESCONECTADO"
-			colorConexao := client.connected ? CORES.CONECTADO : CORES.DESCONECTADO
-			try {
-				guiCtrlStatusConexao.Text := statusConexao
-			}
-		
-		; Atualizar timestamp
-			ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
-			try {
-				guiCtrlTimestamp.Text := "Última atualização:`t" ultimaAtualizacao
-			}
-		
-		; Atualizar cada partição individualmente com cor
-			Loop 8 {
-				status := ObterStatusParticao(A_Index)
-				guiCtrlParticoes[A_Index].Opt("-Redraw")
-				guiCtrlParticoes[A_Index].Text := "Partição " A_Index ": " status.texto
-				guiCtrlParticoes[A_Index].Opt("+Background" status.cor)
-			}
-		
-		; Atualizar cada sensor individualmente com cor
-			Loop 32 {
-				status := ObterStatusSensor(A_Index)
-				guiCtrlSensores[A_Index].Opt("-Redraw")
-				guiCtrlSensores[A_Index].Text := A_Index ": " status.texto
-				guiCtrlSensores[A_Index].Opt("+Background" status.cor)
-			}
-		
-		; Atualizar histórico
-			historicoText := ""
-			Loop historicoMensagens.Length {
-				item := historicoMensagens[A_Index]
-				historicoText := historicoText item.timestamp " - " item.message "`r`n"
-			}
-			try {
-				guiCtrlHistorico.Text := historicoText
-			}
+		statusConexao := client.connected ? "🟢 CONECTADO" : "🔴 DESCONECTADO"
+		colorConexao := client.connected ? CORES.CONECTADO : CORES.DESCONECTADO
+		try guiCtrlStatusConexao.Text := statusConexao
 
-		; Forçar redraw dos controles
-			Loop 32 {
-				if(A_Index < 9)
-					guiCtrlParticoes[A_Index].Opt("+Redraw")
-				guiCtrlSensores[A_Index].Opt("+Redraw")
-			}
+		ultimaAtualizacao := Format("{:02d}:{:02d}:{:02d}", A_Hour, A_Min, A_Sec)
+		try guiCtrlTimestamp.Text := "Última atualização:`t" ultimaAtualizacao
+
+		Loop 8 {
+			status := ObterStatusParticao(A_Index)
+			guiCtrlParticoes[A_Index].Opt("-Redraw")
+			guiCtrlParticoes[A_Index].Text := "Partição " A_Index ": " status.texto
+			guiCtrlParticoes[A_Index].Opt("+Background" status.cor)
+		}
+
+		Loop 32 {
+			status := ObterStatusSensor(A_Index)
+			guiCtrlSensores[A_Index].Opt("-Redraw")
+			guiCtrlSensores[A_Index].Text := A_Index ": " status.texto
+			guiCtrlSensores[A_Index].Opt("+Background" status.cor)
+		}
+
+		;historicoText := ""
+		;Loop historicoMensagens.Length {
+		;	item := historicoMensagens[A_Index]
+		;	historicoText := historicoText item.timestamp " - " item.message "`r`n"
+		;}
+		;try guiCtrlHistorico.Text := historicoText
+
+		Loop 32 {
+			if(A_Index < 9)
+				guiCtrlParticoes[A_Index].Opt("+Redraw")
+			guiCtrlSensores[A_Index].Opt("+Redraw")
+		}
 	}
 
 ; ===================== INTERFACE GRÁFICA =====================
@@ -620,80 +746,65 @@ Persistent
 		MyGui := Gui()
 		guiHwnd := MyGui.Hwnd
 
-		; Configurar cores padrão
-			MyGui.BackColor := CORES.FUNDO_INTERFACE
-			MyGui.SetFont("S12")
+		MyGui.BackColor := CORES.FUNDO_INTERFACE
+		MyGui.SetFont("S12")
 		
-		; Header
-			MyGui.Add("Text", "x15 Center w410 h20 cFFFFFF Background" CORES.INFO " Section", "🛡️ VIAWEB MONITOR")
-			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
+		MyGui.Add("Text", "x15 Center w410 h20 cFFFFFF Background" CORES.INFO " Section", "🛡️ VIAWEB MONITOR")
+		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 		
-		; Status de Conexão
-			guiCtrlStatusConexao := MyGui.Add("Text", "Center w410 h20 c" CORES.CONECTADO " Background" CORES.FUNDO_NEUTRAL, "🔴 DESCONECTADO")
-			MyGui.SetFont("S9")
+		guiCtrlStatusConexao := MyGui.Add("Text", "Center w410 h20 c" CORES.CONECTADO " Background" CORES.FUNDO_NEUTRAL, "🔴 DESCONECTADO")
+		MyGui.SetFont("S9")
 
-		; Informações de Conexão
-			MyGui.Add("Text", "x15 w410", "Endereço:`t`t" IP ":" PORTA)
+		MyGui.Add("Text", "x15 w410", "Endereço:`t`t" IP ":" PORTA)
 
-			MyGui.Add("Text", "x15 w60 y+5", "ISEP:")
+		MyGui.Add("Text", "x15 w60 y+5", "ISEP:")
+		guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w100", gunidades)
+		filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)
+		guiCtrlISEP.Text := ISEP_DEFAULT
+		guiCtrlISEP.OnEvent("Change", ISEPChanged)
 
-			;guiCtrlISEP := MyGui.Add("DropDownList", "x80 yp-3 w100 Choose1", ["0001", "0002", "0003", "0004", "0005"])
-			;guiCtrlISEP.OnEvent("Change", ISEPChanged)
+		guiCtrlTimestamp := MyGui.Add("Text", "x15 w410 y+0", "Última atualização:`t00:00:00")
+		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
-			guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w100", gunidades)
-			filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)  ; keepOpen = true | id-label = true
-			guiCtrlISEP.Text := ISEP_DEFAULT  ; Define valor inicial
-			guiCtrlISEP.OnEvent("Change", ISEPChanged)
+		btnCtrlGroup := MyGui.Add("GroupBox", "x15 w410 h60 Section c" CORES.TEXTO_GRUPO, "🎮 Controles de Central")
+		MyGui.Add("Button", "x025 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA, "🔒 Armar").OnEvent("Click", ArmarBtn)
+		MyGui.Add("Button", "x125 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA, "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
+		MyGui.Add("Button", "x225 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "📋 Status").OnEvent("Click", StatusBtn)
+		MyGui.Add("Button", "x325 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "🔄 Zonas").OnEvent("Click", ZonasBtn)
 
-			guiCtrlTimestamp := MyGui.Add("Text", "x15 w410 y+0", "Última atualização:`t00:00:00")
-			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
+		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
-		; Seção de Controles
-			btnCtrlGroup := MyGui.Add("GroupBox", "x15 w410 h60 Section c" CORES.TEXTO_GRUPO, "🎮 Controles de Central")
-			MyGui.Add("Button", "x025 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.ARMADA, "🔒 Armar").OnEvent("Click", ArmarBtn)
-			MyGui.Add("Button", "x125 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.DESARMADA, "🔓 Desarmar").OnEvent("Click", DesarmarBtn)
-			MyGui.Add("Button", "x225 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "📋 Status").OnEvent("Click", StatusBtn)
-			MyGui.Add("Button", "x325 ys+20 w90 h30 c" CORES.TEXTO_CLARO " Background" CORES.INFO, "🔄 Zonas").OnEvent("Click", ZonasBtn)
+		MyGui.Add("GroupBox", "x15 y+10 w410 h165 Section c" CORES.TEXTO_GRUPO, "📊 Status das Partições ")
+		Loop 8 {
+			guiCtrlParticoes.Push("")
+			status := ObterStatusParticao(A_Index)
+			guiCtrlParticoes[A_Index] := MyGui.Add("Text", "x20 ys+" (A_Index * 16) " w390 h16 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, "Partição " A_Index ": " status.texto)
+		}
 
-			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
+		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
-		; Seção de Partições com GroupBox
-			MyGui.Add("GroupBox", "x15 y+10 w410 h165 Section c" CORES.TEXTO_GRUPO, "📊 Status das Partições ")
+		MyGui.Add("GroupBox", "x15 y+10 w410 h180 Section c" CORES.TEXTO_GRUPO, "📡 Status dos Sensores")
+		yBaseSensores := 555
+		Loop 32 {
+			coluna := Mod(A_Index - 1, 4)
+			linha := (A_Index - 1) // 4
+			xPos := 20 + (coluna * 100)
+			status := ObterStatusSensor(A_Index)
+			guiCtrlSensores.Push(MyGui.Add("Text", "x" xPos " ys+" ((linha+1) * 20) " w95 h18 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, A_Index ": " status.texto))
+		}
 
-			Loop 8 {
-				guiCtrlParticoes.Push("")
-				status := ObterStatusParticao(A_Index)
-				guiCtrlParticoes[A_Index] := MyGui.Add("Text", "x20 ys+" (A_Index * 16) " w390 h16 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, "Partição " A_Index ": " status.texto)
-			}
+		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
 
-			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
+		MyGui.Add("GroupBox", "x15 w410 h120 c" CORES.TEXTO_GRUPO " Section", "📜 Histórico de Ações:")
+		guiCtrlHistorico := MyGui.Add("Edit", "ys+20 xs+10 w390 h90 ReadOnly Multi Background" CORES.FUNDO_NEUTRAL " c" CORES.TEXTO_ESCURO)
 
-		; Seção de Sensores com GroupBox (4 colunas x 8 linhas = 32 sensores)
-			MyGui.Add("GroupBox", "x15 y+10 w410 h180 Section c" CORES.TEXTO_GRUPO, "📡 Status dos Sensores")
+		guiCtrlStatusConexao.Value := "🔴 DESCONECTADO"
+		guiCtrlTimestamp.Value := "Última atualização:`t00:00:00"
+		guiCtrlHistorico.Value := "Sistema iniciado`nAguardando conexão..."
 
-			yBaseSensores := 555
-			Loop 32 {
-				coluna := Mod(A_Index - 1, 4)
-				linha := (A_Index - 1) // 4
-				xPos := 20 + (coluna * 100)
-				status := ObterStatusSensor(A_Index)
-				guiCtrlSensores.Push(MyGui.Add("Text", "x" xPos " ys+" ((linha+1) * 20) " w95 h18 c" CORES.TEXTO_CLARO " 0x1500 Background" status.cor, A_Index ": " status.texto))
-			}
-
-			MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
-
-		; Seção de Histórico
-			MyGui.Add("GroupBox", "x15 w410 h120 c" CORES.TEXTO_GRUPO " Section", "📜 Histórico de Ações:")
-			guiCtrlHistorico := MyGui.Add("Edit", "ys+20 xs+10 w390 h90 ReadOnly Multi Background" CORES.FUNDO_NEUTRAL " c" CORES.TEXTO_ESCURO)
-
-		; Valores iniciais
-			guiCtrlStatusConexao.Value := "🔴 DESCONECTADO"
-			guiCtrlTimestamp.Value := "Última atualização:`t00:00:00"
-			guiCtrlHistorico.Value := "Sistema iniciado`nAguardando conexão..."
-
-			MyGui.Show("x0 y0")
-			MyGui.OnEvent("Close", GuiClose)
-			MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
+		MyGui.Show("x0 y0")
+		MyGui.OnEvent("Close", GuiClose)
+		MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
 	}
 
 	GuiClose(GuiObj) {
@@ -738,7 +849,6 @@ Persistent
 		}
 		try {
 			client.StatusParticoes(RegExReplace(ISEP_DEFAULT, "\D"))
-
 		} catch Error as e {
 			AddHistorico("❌ Erro: " e.Message, CORES.ERRO)
 		}
@@ -759,7 +869,8 @@ Persistent
 
 	ISEPChanged(GuiCtrlObj, Info) {
 		global ISEP_DEFAULT
-		ISEP_DEFAULT := Format( '{:04}',GuiCtrlObj.Text)
+		idClean := RegExReplace(GuiCtrlObj.Text, "\D")
+		ISEP_DEFAULT := Format('{:04}', idClean)
 		AddHistorico("📝 ISEP alterado para: " ISEP_DEFAULT, CORES.INFO)
 }
 ; ===================== INICIALIZAÇÃO ======================
