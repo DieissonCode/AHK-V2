@@ -189,6 +189,12 @@ Persistent
 		commandId := 0
 		hwnd := 0
 
+		static Version := "0.4.5"
+
+		static GetVersion() {
+			return this.Version
+		}
+
 		__New(ip, port, hexKey, hexIV) {
 			this.ip := ip
 			this.port := port
