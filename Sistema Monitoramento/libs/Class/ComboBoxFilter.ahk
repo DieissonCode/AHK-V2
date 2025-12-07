@@ -9,6 +9,13 @@ class ComboBoxFilter {
         keepOpen : true para manter dropdown aberto enquanto digita
         idLabel  : true para mostrar "id - label", false para mostrar só label
     */
+
+    static Version := "0.0.1"
+
+    static GetVersion() {
+        return this.Version
+    }
+
     __New(cbCtrl, items, keepOpen := true, idLabel := false) {
         this.cb       := cbCtrl
         this.items    := items
