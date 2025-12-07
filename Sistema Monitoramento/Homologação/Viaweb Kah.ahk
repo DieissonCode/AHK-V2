@@ -86,6 +86,13 @@ Persistent
 
 	; Classe base com os comandos do protocolo VIAWEB
 	class Viaweb {
+
+		static Version := "0.0.1"
+
+		static GetVersion() {
+			return this.Version
+		}
+
 		GetCommandId() {
 			this.commandId++
 			return SubStr(SysGetIPAddresses()[1], -3) this.commandId
@@ -189,7 +196,7 @@ Persistent
 		commandId := 0
 		hwnd := 0
 
-		static Version := "0.4.5"
+		static Version := "0.1.1"
 
 		static GetVersion() {
 			return this.Version
@@ -350,6 +357,12 @@ Persistent
 		ivSend := Buffer(16)
 		ivRecv := Buffer(16)
 		blockSize := 16
+
+		static Version := "0.0.1"
+
+		static GetVersion() {
+			return this.Version
+		}
 
 		__New(hexKey, hexIV) {
 			key := this.HexToBytes(hexKey)
