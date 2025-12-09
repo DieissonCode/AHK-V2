@@ -10,11 +10,7 @@ class ComboBoxFilter {
         idLabel  : true para mostrar "id - label", false para mostrar só label
     */
 
-    static Version := "0.0.1"
-
-    static GetVersion() {
-        return this.Version
-    }
+    static Version := "0.0.2"
 
     __New(cbCtrl, items, keepOpen := true, idLabel := false) {
         this.cb       := cbCtrl
@@ -23,11 +19,30 @@ class ComboBoxFilter {
         this.idLabel  := idLabel
         this.editHwnd := this.GetComboEditHwnd(cbCtrl.Hwnd)
         this.guiHwnd  := cbCtrl.Gui.Hwnd
-        this.displayMap := Map()  ; texto exibido -> {id, label}
+        this.displayMap := Map()
+        this._skipNextChange := false  ; campo de instância
 
         cbCtrl.OnEvent("Change", ObjBindMethod(this, "FilterList"))
         this.SetupCloseHotkeys()
         this.ReloadList("")
+    }
+
+    ; propriedade read/write para skipNextChange
+    skipNextChange {
+        get {
+            return this._skipNextChange
+        }
+        set {
+            this._skipNextChange := Value
+        }
+    }
+
+    SkipNextChange() {
+        this.skipNextChange := true
+    }
+
+    static GetVersion() {
+        return this.Version
     }
 
     SetupCloseHotkeys() {
@@ -72,6 +87,11 @@ class ComboBoxFilter {
     }
 
     FilterList(ctrl, *) {
+        if (this.skipNextChange) {
+            this.skipNextChange := false
+            return
+        }
+
         typed := ctrl.Text
         this.ReloadList(typed)
         if (this.keepOpen)
@@ -84,10 +104,12 @@ class ComboBoxFilter {
         txt := this.cb.Text
         return this.displayMap.Has(txt) ? this.displayMap[txt] : ""
     }
+
     GetSelectedId() {
         sel := this.GetSelected()
         return sel ? sel.id : ""
     }
+
     GetSelectedLabel() {
         sel := this.GetSelected()
         return sel ? sel.label : ""
