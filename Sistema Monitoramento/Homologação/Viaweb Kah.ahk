@@ -958,7 +958,7 @@ Persistent
 			msgbox("❌ Erro SQL: " e.Message "`r`n`tLine: " e.Line, CORES.ERRO)
 		}
 		
-		global ISEP_DEFAULT := rs[2][2]
+		global ISEP_DEFAULT := rs[2][2] ' - ' rs[2][1]
 
 		; Se nada voltou ou deu erro, mantém as unidades atuais
 		if (unidades.Length = 0)
