@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.6
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.7
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -968,7 +968,7 @@ Persistent
 
 	CriarGUI() {
 		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlSensores, guiCtrlHistorico, CORES
-			, gunidades
+			, gunidades, guiCtrlISEP
 		MyGui := Gui()
 		guiHwnd := MyGui.Hwnd
 
@@ -986,6 +986,8 @@ Persistent
 		MyGui.Add("Text", "x15 w60 y+5", "ISEP:")
 		guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w200", gunidades)
 		filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)
+			global comboFilter := filter
+			OnMessage(0x0100, ComboKeyNavBlock)  ; WM_KEYDOWN
 		guiCtrlISEP.Text := ISEP_DEFAULT
 		guiCtrlISEP.OnEvent("Change", ISEPChanged)
 
@@ -1031,6 +1033,24 @@ Persistent
 		MyGui.Show("x0 y0")
 		MyGui.OnEvent("Close", GuiClose)
 		MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
+	}
+
+	ComboKeyNavBlock(wParam, lParam, message, hwnd) {
+		global guiCtrlISEP, comboFilter
+		static VK_UP := 0x26, VK_DOWN := 0x28, CB_GETDROPPEDSTATE := 0x157
+
+		if (wParam != VK_UP && wParam != VK_DOWN)
+			return
+
+		focusHwnd := DllCall("GetFocus", "ptr")
+		if (focusHwnd != guiCtrlISEP.Hwnd && focusHwnd != comboFilter.editHwnd)
+			return
+
+		dropped := DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_GETDROPPEDSTATE, "ptr", 0, "ptr", 0)
+		if (!dropped)
+			return
+
+		comboFilter.SkipNextChange()
 	}
 
 	GuiClose(GuiObj) {
