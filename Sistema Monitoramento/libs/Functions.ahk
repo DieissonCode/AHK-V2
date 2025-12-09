@@ -534,262 +534,216 @@ StrRep( haystack, needles* )	{
 
 }
 
-sql( query, update_in_query:=0 )	{
-	initial_error	:=	A_LastError
-	query := Trim(query, '`t')
-	query := Trim(query, '`r')
-	query := Trim(query, '`n')
-	query := Trim(query, A_Space)
-	q	:=	StrSplit( RegexReplace( query, '[\t\r\n]', A_Space ), A_Space)
-	v	:=	Map('select'	, 1
-			,	'update'	, 1
-			,	'insert'	, 1
-			,	'if'		, 1
-			,	'delete'	, 1
-			,	'declare'	, 1
-			,	'MERGE'		, 1
-			,	'WITH'		, 1
-			,	'EXECUTE'	, 1
-			,	'backup'	, 1 )
-	If	!v.Has( Format('{:L}',q[1]))
-		Return	'ERROR - Tipo de query não definida!'
+; VERSÃO MELHORADA SQL com Try/Catch Error as e
+	sql(query, update_in_query := 0) {
+		; ===== 1. VALIDAÇÃO E LIMPEZA =====
+		initial_error := A_LastError
+		query := Trim(query, "`t`r`n ")
 
-	start_query	:=	query
-	SQL_LE_COUNT:=	1
+		; Validar se query está vazia
+		if (query = '') {
+			return 'ERROR - Query vazia!'
+		}
 
-	redo:
-		If( A_IsCompiled )
-			ListLines False
+		; ===== 2. EXTRAIR TIPO DE COMANDO =====
+		q := StrSplit(RegexReplace(query, '[\t\r\n]', ' '), ' ')
+		cmd := Format('{:L}', q[1])
 
-	sql_le	:=	''
-	;	Update sem 'WHERE' - Necessita confirmação do usuário
-		if( InStr( query, 'UPDATE' ) > 0 && InStr( query, 'WHERE' ) = 0 && update_in_query != 1 )	{
-			If	!A_IsCompiled
+		valid_commands := Map('select', 1, 'update', 1, 'insert', 1, 'if', 1, 
+							'delete', 1, 'declare', 1, 'merge', 1, 'with', 1, 
+							'execute', 1, 'backup', 1)
+
+		if (!valid_commands.Has(cmd)) {
+			return 'ERROR - Tipo de query não definida: ' cmd
+		}
+
+		; ===== 3. VALIDAÇÃO DE UPDATE SEM WHERE =====
+		if (InStr(query, 'UPDATE') && !InStr(query, 'WHERE') && !update_in_query) {
+			if (!A_IsCompiled)
 				clipboard := query
-
-			If MsgBox(	'Você está tentando executar um UPDATE sem definir WHERE, deseja realmente continuar?`nIsso alterará TODOS os dados da tabela`n.' SubStr( query, InStr(query, 'update')-10, instr(query, 'update')+20 )
-				,	'CUIDADO!'
-				,	4	) = 'No'
-				return
-			Else
-				if( !A_IsCompiled )
-					clipboard := query
-
+			
+			if (MsgBox('⚠️ UPDATE sem WHERE detectado!`nIsso alterará TODOS os dados.`n`nContinuar?', 
+					'CUIDADO!', 0x04) = 'No') {
+				return 'Operação cancelada pelo usuário'
 			}
-
-	;
-
-	Switch	{	;	Auto select tipo
-
-		Case	InStr( query, '[IrisSQL].' ) && !InStr( query, '[Iris].'):
-			str	:=	'
-				(
-					Driver={SQL Server};
-					Server=srvvdm-bd\iris10db;
-					Uid=ahk;
-					Pwd=139565Sa
-				)'
-			tipo := 'mssql'
-
-		Case	InStr( query, 'oracle.' ):
-			str	:=	'
-				(
-					Driver={Oracle in ora_moni};
-					dbq=(	DESCRIPTION=(	ADDRESS=(	PROTOCOL=TCP	)(	HOST=oraprod.cotrijal.local	)(	PORT=1521	)	)(	CONNECT_DATA=(	SERVICE_NAME=prodpdb	)	)	);
-					Uid=asm;
-					Pwd=cot2020asm
-				)'
-			tipo := 'oracle'
-
-		Case	InStr( query, '[IrisSQL].' ) && InStr( query, '[Iris].')
-				,	InStr( query, '[ASM].' )
-				,	InStr( query, '[Cotrijal].' )
-				,	InStr( query, '[Dguard].' )
-				,	InStr( query, '[Guardinhas].' )
-				,	InStr( query, '[Logs].' )
-				,	InStr( query, '[MotionDetection].' )
-				,	InStr( query, '[Sistema_Monitoramento].' )
-				,	InStr( query, '[Telegram].' )
-				,	InStr( query, '[Viaweb_Facilitador].' )
-				,	InStr( query, '[vw_operador01].' )
-				,	InStr( query, '[vw_programação].' )
-				,	InStr( query, '[vw_operador02].' )
-				,	InStr( query, '[vw_operador03].' )
-				,	InStr( query, '[vw_operador04].' )
-				,	InStr( query, '[vw_operador05].' )
-				,	InStr( query, '[vw_operador06].' )
-				,	InStr( query, '[Zabbix].' ):
-			str	:=	'
-				(
-					Driver={SQL Server};
-					Server=srvvdm-bd\ASM;
-					Uid=ahk;
-					Pwd=139565Sa
-				)'
-				tipo := 'mssql'
-
-		Default:	;	firebird
-			str	:=	'
-				(
-					Driver={Firebird/InterBase(r) driver};DBNAME=\\192.9.100.187\c:\Moni\Dados\MONI.FDB;Port=3050;Uid=SYSDBA;Pwd=mn1200qldd;Client=\\192.9.100.187\Moni\FireBird\fbclient.dll;Server Type=0
-				)'
-			tipo := 'firebird'
-
-	}
-	
-	coer := '', txtout := 0, rd := '`n', cd := 'CSV'
-
-	If	!( oCon := ComObject( 'ADODB.Connection' ) )	{	;	se não houver driver odbc
-
-		; ComObjError('1')
-		ErrorLevel	:= 'Error'
-		sql_le		:= 'Fatal Error: Driver ODBC não encontrado.'
-		Msgbox(sql_le)
-		Return
-
-	}
-
-	oCon.ConnectionTimeout	:= 5
-	oCon.CursorLocation		:= 3
-	oCon.CommandTimeout		:= 30
-	Try	oCon.Open( str )
-	Catch As e
-		Return
-
-	If	!( coer := initial_error && initial_error != A_LastError )	{	;	Se não haver erro, executa a chamada
-
-		LTRIM( query, '	' )
-		sql_lq	:= query
-		Try oRec	:= oCon.execute( query )	;	https://www.w3schools.com/asp/ado_ref_recordset.asp	| ANTIGO
-		Catch as e
-			OutputDebug	e.Message
-		if	A_LastError && !A_IsCompiled
-			Msgbox	'erro sql`n' clipboard := sql_lq
-
 		}
-	Else
-		Return
-	If	!( coer := A_LastError && initial_error != A_LastError )	{	;	se não deu erro na execução, prepara o objeto para retornar
-		Retorno := []
 
-		While IsObject( oRec )	{
+		; ===== 4. MAPA DE CONEXÕES (Mais organizado) =====
+		connections := Map(
+			'[Programação].[dbo].', GetConnection('Programação', 'srvvdm-bd\viaweb,12346', 'ahk', '139565Sa'),
+			'[IrisSQL].', GetConnection('IrisSQL', 'srvvdm-bd\iris10db', 'ahk', '139565Sa'),
+			'oracle.', GetConnectionOracle(),
+			'[ASM].', GetConnection('ASM', 'srvvdm-bd\ASM', 'ahk', '139565Sa'),
+			'[Cotrijal].', GetConnection('ASM', 'srvvdm-bd\ASM', 'ahk', '139565Sa')
+		)
 
-			; __ := orec.Find('b.[operador]=1')
-			; MsgBox
-			Switch	{
+		; Determinar conexão
+		try {
+			connection_str := GetConnectionString(query, connections)
+		} catch Error as e {
+			MsgBox('❌ ERRO ao determinar conexão:`n`n' e.Message, 'GetConnectionString', 0x10)
+			return
+		}
 
-				Case !oRec.State:
-					Switch	{
+		; ===== 5. INICIALIZAR CONEXÃO =====
+		try {
+			oCon := ComObject('ADODB.Connection')
+		} catch Error as e {
+			MsgBox('❌ ERRO FATAL: Driver ODBC não encontrado`n`n' e.Message, 'ComObject', 0x10)
+			return
+		}
 
-						Case tipo = 'firebird':
-							Try	
-								oRec := oRec.NextRecordset()
-							Catch
-								oRec := 0
+		oCon.ConnectionTimeout := 20
+		oCon.CursorLocation := 3
+		oCon.CommandTimeout := 30
 
-						Default:
-							oRec := oRec.NextRecordset()
+		;try {
+			oCon.Open(connection_str)
+		;} catch Error as e {
+		;	MsgBox('❌ ERRO: Conexão com BD falhou`n`nServidor: ' connection_str '`n`n' e.Message, 'oCon.Open', 0x10)
+		;	return
+		;}
 
+		; ===== 6. EXECUTAR QUERY COM TRATAMENTO =====
+		sql_error := ''
+		retorno := []
+
+		try {
+			oRec := oCon.Execute(query)
+		} catch Error as e {
+			sql_error := e.Message
+			MsgBox('❌ ERRO na execução da query:`n`n' e.Message '`n`n' SubStr(query, 1, 200) '...', 'oCon.Execute', 0x10)
+			if (!A_IsCompiled)
+				OutputDebug 'SQL ERROR: ' e.Message
+		}
+
+		; ===== 7. PROCESSAR RECORDSET =====
+		if (sql_error = '') {
+			try {
+				retorno := ProcessRecordset(oRec)
+			} catch Error as e {
+				sql_error := e.Message
+				MsgBox('❌ ERRO ao processar recordset:`n`n' e.Message, 'ProcessRecordset', 0x10)
+				if (!A_IsCompiled)
+					OutputDebug 'RECORDSET ERROR: ' e.Message
+			}
+		}
+
+		; ===== 8. FECHAR CONEXÃO =====
+		try {
+			oCon.Close()
+		} catch Error as e {
+			MsgBox('❌ ERRO ao fechar conexão:`n`n' e.Message, 'oCon.Close', 0x10)
+			OutputDebug 'ERRO ao fechar conexão: ' e.Message
+		}
+
+		; ===== 9. TRATAMENTO DE ERROS =====
+		if (sql_error != '') {
+			return
+		}
+
+		; ===== 10. RETORNAR RESULTADO =====
+		return retorno.Length = 1 ? retorno[1] : retorno
+	}
+
+	GetConnection(db_name, server, uid, pwd) {
+		try {
+			return 'Driver={SQL Server};'
+				. 'Server=' . server . ';'
+				. 'Uid=' . uid . ';'
+				. 'Pwd=' . pwd
+				;. ';Trusted_Connection=no'
+		} catch Error as e {
+			throw Error('Erro ao construir string de conexão: ' e.Message)
+		}
+	}
+
+	GetConnectionOracle() {
+		try {
+			return 'Driver={Oracle in ora_moni};'
+				. 'dbq=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=oraprod.cotrijal.local)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=prodpdb)));'
+				. 'Uid=asm;'
+				. 'Pwd=cot2020asm'
+		} catch Error as e {
+			throw Error('Erro ao construir conexão Oracle: ' e.Message)
+		}
+	}
+
+	GetConnectionString(query, connections) {
+		try {
+			for pattern, conn_str in connections {
+				if (InStr(query, pattern)) {
+					return conn_str
+				}
+			}
+			
+			; Default: Firebird
+			return 'Driver={Firebird/InterBase(r) driver};DBNAME=\\192.9.100.187\c:\Moni\Dados\MONI.FDB;Port=3050;Uid=SYSDBA;Pwd=mn1200qldd;Client=\\192.9.100.187\Moni\FireBird\fbclient.dll;Server Type=0'
+		} catch Error as e {
+			throw Error('Erro ao obter string de conexão: ' e.Message)
+		}
+	}
+;
+
+ProcessRecordset(oRec) {
+	try {
+		retorno := []
+		
+		while IsObject(oRec) {
+			try {
+				if (!oRec.State) {
+					oRec := oRec.NextRecordset()
+					continue
+				}
+				
+				oFld := oRec.Fields
+				cols := oFld.Count
+				
+				if (cols > 0) {
+					oTbl := []
+					retorno.Push(oTbl)
+					
+					; Headers
+					oRow := []
+					oTbl.Push(oRow)
+					Loop cols {
+						try {
+							oRow.Push(oFld.Item(A_Index - 1).Name)
+						} catch Error as e {
+							oRow.Push('ERRO_COLUNA_' A_Index)
+						}
 					}
-
-				Default:
-					oFld	:=	oRec.Fields
-					cols	:=	oFld.Count
-					Retorno.Push( oTbl := [] )
-					oTbl.Push( oRow := [] )
-					Loop	cols	;	preparamos o nome das colunas
-						oRow.Push( oFld.Item( A_Index-1 ).Name )
-
-					While	!oRec.EOF	{			;	Enquanto o ponteiro não chegar no final do recordset
-
-						oTbl.Push( oRow := [] )	;	cria o objeto para os resultados da query
-						Loop	cols					;	busca o resultado de cada coluna, da linha atual e insere no objeto
-							oRow.Push( oFld.Item( A_Index - 1 ).Value )
-
-						oRec.MoveNext()				;	próxima linha
-
+					
+					; Dados
+					while (!oRec.EOF) {
+						oRow := []
+						oTbl.Push(oRow)
+						Loop cols {
+							try {
+								oRow.Push(oFld.Item(A_Index - 1).Value)
+							} catch Error as e {
+								oRow.Push(null)
+							}
+						}
+						oRec.MoveNext()
 					}
-					; MsgBox
+				}
+			} catch Error as e {
+				OutputDebug 'Erro ao processar recordset: ' e.Message
+				throw e
 			}
-
-			Switch	{
-
-				Case tipo = 'firebird':
-					Try
-						oRec := oRec.NextRecordset()
-					Catch
-						oRec := 0
-
-				Default:
-					if IsObject(oRec)	;	2024/11/13
-						oRec := oRec.NextRecordset()
-
+			
+			try {
+				oRec := oRec.NextRecordset()
+			} catch Error as e {
+				oRec := 0
 			}
-
 		}
-
-		}
-	Else	{							;	tratamento de erros
-
-		oErr	:=	oCon.Errors
-		Loop	oErr.Count	{
-
-			oFld	:=	oErr.Item( A_Index - 1 )
-			str		:=	oFld.Description
-			query	.=	'`n`n'	SubStr( str, 1 + InStr( str, ']', 0, 2 + InStr( str, '][', 0, 0 ) ) )
-					.	'`n		Number: '		oFld.Number
-					.	'`n		NativeError: '	oFld.NativeError
-					.	'`n		Source: '		oFld.Source
-					.	'`n		SQLState: '		oFld.SQLState
-					.	'`n		Message: '		oFld.Message
-
-		}
-		sql_le	:= query
-		query	:= ''
-		txtout	:= 1
-
+		
+		return retorno
+	} catch Error as e {
+		throw Error('Erro geral no processamento de recordset: ' e.Message)
 	}
-	oCon.Close()
-
-	; ComObjError()
-	ErrorLevel := coer
-	if	sql_le	{
-
-		SQL_LE_COUNT++
-		if( SQL_LE_COUNT < 5 ) {
-
-			if	InStr( sql_le, 'comando de texto não foi definido para o objeto de comando.' )
-			&&	start_query {
-
-				query	:=	start_query
-				OutputDebug	'SQL ERROR Tentativa ' SQL_LE_COUNT '`n`t' sql_le
-				Goto('redo')
-
-			}
-
-		}
-		Else	{
-			MsgBox
-			; mail.new( 'dsantos@cotrijal.com.br'
-					; , 'Erro de SQL - ' A_ScriptName
-					; , A_IPAddress1 '`n`nErro:`n`t' sql_le '`n`nQuery:`n`t' start_query )
-			if	!A_IsCompiled
-				OutputDebug	'Erro de sql:`n`t' sql_le '`n'
-							. 'Query`n`t' clipboard := start_query
-
-			Return
-
-		}
-
-	}
-
-	ListLines(1)
-
-	Return	Retorno.Length = 1
-			?	Retorno[1]
-			:	Retorno
-
-
 }
 
 sql_version( show_tray_tip:="0", custom_name:="", show_name:="" )	{
