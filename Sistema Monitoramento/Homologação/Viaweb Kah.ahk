@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.5
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.6
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -9,9 +9,10 @@
 #Requires AutoHotkey v2.0
 #Warn All, off
 #SingleInstance Force
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Unicode.ahk
-#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\ComboBoxFilter.ahk
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
+#Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Unicode.ahk
 
 Persistent
 
@@ -21,7 +22,6 @@ Persistent
 	CHAVE := "94EF1C592113E8D27F5BB4C5D278BF3764292CEA895772198BA9435C8E9B97FD"
 	IV := "70FC01AA8FCA3900E384EA28A5B7BCEF"
 
-	ISEP_DEFAULT := "0001 - Sede"
 	SENHA_DEFAULT := "8790"
 
 	POLL_INTERVAL_MS := 500
@@ -62,11 +62,8 @@ Persistent
 	global statusConexao := "Desconectado"
 	global colorConexao := CORES.DESCONECTADO
 	global guiHwnd := 0
-	global gunidades := [
-        {id: "0001", label: "Sede"}
-      , {id: "0002", label: "Acerto"}
-      , {id: "0003", label: "Filial Norte"}
-    ]
+	global gunidades := CarregarUnidadesDb()
+
 	global clientesMap := Map()
 
 	; Controles de GUI
@@ -351,6 +348,7 @@ Persistent
 		}
 	}
 
+	; Classe de criptografia AES CBC via BCrypt
 	class ViawebCrypto {
 		hAlg := 0
 		hKey := 0
@@ -942,6 +940,31 @@ Persistent
 		return DateAdd(base, ts, "s")  ; retorna YYYYMMDDhhmmss
 	}
 ; ===================== INTERFACE GRÁFICA =====================
+	CarregarUnidadesDb() {
+		global gunidades, CORES
+		unidades := []
+
+		query := "SELECT [NOME],[NUMERO] FROM [Programação].[dbo].[INSTALACAO] ORDER BY 1"
+		;query := "select * from [ASM].[dbo].[_unidades]"
+
+		try {
+			rs := sql(query)
+			Loop rs.Length-1 {
+				nome := rs[A_Index+1][1]
+				num  := Format("{:04}",rs[A_Index+1][2])
+				unidades.Push({ id : num, label : nome })
+			}
+		} catch Error as e {
+			msgbox("❌ Erro SQL: " e.Message "`r`n`tLine: " e.Line, CORES.ERRO)
+		}
+		
+		global ISEP_DEFAULT := rs[2][2]
+
+		; Se nada voltou ou deu erro, mantém as unidades atuais
+		if (unidades.Length = 0)
+			return gunidades
+		return unidades
+	}
 
 	CriarGUI() {
 		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlSensores, guiCtrlHistorico, CORES
@@ -961,7 +984,7 @@ Persistent
 		MyGui.Add("Text", "x15 w410", "Endereço:`t`t" IP ":" PORTA)
 
 		MyGui.Add("Text", "x15 w60 y+5", "ISEP:")
-		guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w100", gunidades)
+		guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w200", gunidades)
 		filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)
 		guiCtrlISEP.Text := ISEP_DEFAULT
 		guiCtrlISEP.OnEvent("Change", ISEPChanged)
@@ -1079,16 +1102,17 @@ Persistent
 ; ===================== INICIALIZAÇÃO ======================
 
 	try {
+
 		CriarGUI()
-		
+
 		client := ViawebClient(IP, PORTA, CHAVE, IV)
 		client.Connect()
-		
+
 		AddHistorico("✅ Conectado em " IP ":" PORTA, CORES.SUCESSO)
-		
+
 		client.Identificar("AHK Monitor GUI")
 		AddHistorico("🔐 Identificação enviada", CORES.INFO)
-		
+
 		SetTimer(PollTimer, POLL_INTERVAL_MS)
 		SetTimer(AtualizarGUI, GUI_UPDATE_MS)
 
