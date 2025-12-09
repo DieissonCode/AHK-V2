@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.7
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.8
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -84,10 +84,14 @@ Persistent
 	; Classe base com os comandos do protocolo VIAWEB
 	class Viaweb {
 
-		static Version := "0.0.1"
-
+		static Version := "0.0.2"
+		commandId := 0
 		static GetVersion() {
 			return this.Version
+		}
+
+		Send(jsonStr) {
+			throw Error("Send must be implemented by subclass - ViawebClient")
 		}
 
 		GetCommandId() {
