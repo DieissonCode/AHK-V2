@@ -1,6 +1,6 @@
 ;Save_To_Sql=1
 ;Keep_Versions=5
-;@Ahk2Exe-Let U_FileVersion = 0.0.4.8
+;@Ahk2Exe-Let U_FileVersion = 0.0.4.9
 ;@Ahk2Exe-SetFileVersion %U_FileVersion%
 ;@Ahk2Exe-Let U_C = KAH - Viaweb
 ;@Ahk2Exe-SetDescription %U_C%
@@ -65,7 +65,7 @@ Persistent
 		global colorConexao := CORES.DESCONECTADO
 		global guiHwnd := 0
 		global gunidades := CarregarUnidadesDb()
-
+		global lastZonasUpdateTick := 0
 		global clientesMap := Map()
 
 	; Controles de GUI
@@ -104,6 +104,7 @@ Persistent
 
 		Identificar(nome := "AHK Monitor") {
 			identJson := '{"a":' Random(1, 999999) ',"oper":[{"acao":"ident","nome":"' nome '"},{"acao":"salvarVIAWEB","operacao":2,"monitoramento":1}]}'
+			OutputDebug('→ ' identJson)
 			this.Send(identJson)
 		}
 
@@ -116,6 +117,7 @@ Persistent
 				particoes := [particoes]
 			particoesStr := "[" JoinArray(particoes, ",") "]"
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"armar","password":"' senha '","forcado":' forcado ',"particoes":' particoesStr '}]}]}'
+			OutputDebug('→ ' cmdObj)
 			this.Send(cmdObj)
 			AddHistorico("🔒 Armar: " JoinArray(particoes, ","), CORES.ARMADA)
 			this.StatusParticoes(idISEP)
@@ -130,6 +132,7 @@ Persistent
 				particoes := [particoes]
 			particoesStr := "[" JoinArray(particoes, ",") "]"
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"desarmar","password":"' senha '","particoes":' particoesStr '}]}]}'
+			OutputDebug('→ ' cmdObj)
 			this.Send(cmdObj)
 			AddHistorico("🔓 Desarmar: " JoinArray(particoes, ","), CORES.DESARMADA)
 			this.StatusParticoes(idISEP)
@@ -141,6 +144,7 @@ Persistent
 				idClean := idISEP
 			cmdId := this.GetCommandId()
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"particoes"}]}]}'
+			OutputDebug('→ ' cmdObj)
 			this.Send(cmdObj)
 			AddHistorico("📋 Consultando partições...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
 			this.StatusZonas(idISEP)
@@ -152,6 +156,7 @@ Persistent
 				idClean := idISEP
 			cmdId := this.GetCommandId()
 			cmdObj := '{"oper":[{"id":' cmdId ',"acao":"executar","idISEP":"' idClean '","comando":[{"cmd":"zonas"}]}]}'
+			OutputDebug('→ ' cmdObj)
 			this.Send(cmdObj)
 			AddHistorico("📋 Consultando zonas...`r`n`t`tcmdId: " cmdId "`r`n`t`tIdIsep: " idClean, CORES.INFO)
 		}
@@ -182,8 +187,9 @@ Persistent
 			}
 
 			payload := Map("oper", [oper])
-			jsonStr := JSON.stringify(payload, , "")
+			jsonStr := (StrReplace(JSON.stringify(payload, , ""), '`n', ' '))
 
+			OutputDebug('→ ' jsonStr)
 			this.Send(jsonStr)
 
 			AddHistorico("📋 Listar clientes enviado.`r`n`t`tcmdId: " cmdId, CORES.INFO)
@@ -345,7 +351,7 @@ Persistent
 						break
 					try {
 						ProcessarResposta(UnicodeHelper.Decode(nextJson))
-						OutputDebug(UnicodeHelper.Decode(nextJson))
+						OutputDebug( '← ' UnicodeHelper.Decode(nextJson))
 					} catch Error as e {
 						FileAppend("[DEBUG] Erro ProcessarResposta: " e.Message "`nJSON:`n" UnicodeHelper.Decode(nextJson) "`n", A_ScriptDir "\debug.log")
 					}
@@ -555,7 +561,7 @@ Persistent
 	}
 
 	ProcessaZonas(resposta) {
-		Global zonasStatus
+		Global zonasStatus, CORES, lastZonasUpdateTick
 		aberta		:= resposta['aberta']
 		batlow		:= resposta['batlow']
 		disparada	:= resposta['disparada']
@@ -564,7 +570,20 @@ Persistent
 		tamper		:= resposta['tamper']
 		temporizando:= resposta['temporizando']
 		zonasStatus[pos] := Map('aberta', aberta, 'batlow', batlow, 'disparada', disparada, 'inibida', inibida, 'tamper', tamper, 'temporizando', temporizando)
+		lastZonasUpdateTick := A_TickCount
 		AddHistorico("✅ Status do sensor " pos " atualizado`r`n`tAberto:`t`t" aberta "`r`n`tDisparado:`t" disparada "`r`n`tInibida:`t`t" inibida "`r`n`tTamper:`t`t" tamper "`r`n`tTemporizando:`t" temporizando, CORES.SUCESSO)
+	}
+
+	EnsureZonas(currIsep) {
+		global client, ISEP_DEFAULT, lastZonasUpdateTick
+		if (!client || !IsObject(client) || !client.connected)
+			return
+		; só refaz se ainda estamos no mesmo ISEP e zonas não chegaram
+		if (ISEP_DEFAULT != currIsep)
+			return
+		if ((A_TickCount - lastZonasUpdateTick) > 600) {
+			try client.StatusZonas(currIsep)
+		}
 	}
 
 	ResponderEvento(id) {
@@ -1058,25 +1077,60 @@ Persistent
 	ComboKeyNavBlock(wParam, lParam, message, hwnd) {
 		global guiCtrlISEP, comboFilter
 		static VK_RETURN := 0x0D, VK_NUMPAD_RETURN := 0x0D
+		static VK_DOWN := 0x28, VK_UP := 0x26
+		static CB_GETDROPPEDSTATE := 0x157
+		static CB_GETCURSEL := 0x147, CB_GETCOUNT := 0x146
+		static CB_SETCURSEL := 0x14E, CB_FINDSTRINGEXACT := 0x158
 
 		focusHwnd := DllCall("GetFocus", "ptr")
-		dropHwnd := GetComboDropHwnd(guiCtrlISEP.Hwnd)
+		dropHwnd  := GetComboDropHwnd(guiCtrlISEP.Hwnd)
 
 		; só processa se o foco está no combo, no edit ou na listbox
 		if (focusHwnd != guiCtrlISEP.Hwnd && focusHwnd != comboFilter.editHwnd && focusHwnd != dropHwnd)
 			return
 
-		; intercepta Enter / NumPadEnter e confirma
+		dropped := DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_GETDROPPEDSTATE, "ptr", 0, "ptr", 0)
+
+		; Enter / NumPadEnter com lista FECHADA confirma seleção
 		if (wParam = VK_RETURN || wParam = VK_NUMPAD_RETURN) {
+			if (dropped)
+				return  ; lista aberta: CBN_SELENDOK cuidará
 			ConfirmarISEP()
 			return 0
 		}
 
-		; demais teclas seguem o fluxo normal
+		; Corrige a “primeira seta” com lista fechada sem mexer no texto do edit
+		if (!dropped && (wParam = VK_DOWN || wParam = VK_UP)) {
+			idx   := DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_GETCURSEL, "ptr", 0, "ptr", 0, "int")
+			count := DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_GETCOUNT, "ptr", 0, "ptr", 0, "int")
+			if (count > 0) {
+				; se nada selecionado, tenta achar pelo texto atual
+				if (idx = -1) {
+					txt := guiCtrlISEP.Text
+					found := DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_FINDSTRINGEXACT, "ptr", -1, "ptr", StrPtr(txt), "int")
+					if (found >= 0)
+						idx := found
+				}
+				if (idx = -1)
+					idx := 0
+				else if (wParam = VK_DOWN)
+					idx := Min(idx + 1, count - 1)
+				else if (wParam = VK_UP)
+					idx := Max(idx - 1, 0)
+
+				; aplica seleção sem alterar guiCtrlISEP.Text
+				DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_SETCURSEL, "ptr", idx, "ptr", 0)
+				ConfirmarISEP()
+				return 0
+			}
+		}
+
+		; demais teclas seguem o padrão (digitação/filtragem)
 	}
 
 	ConfirmarISEP() {
-		global guiCtrlISEP, ISEP_DEFAULT, CORES, guiCtrlClienteSelecionado
+		global guiCtrlISEP, ISEP_DEFAULT, CORES, guiCtrlClienteSelecionado, client
+		static lastISEP := ""  ; evita reprocessar o mesmo ISEP consecutivo
 
 		if (!IsObject(guiCtrlISEP))
 			return
@@ -1095,16 +1149,26 @@ Persistent
 		}
 
 		idClean := RegExReplace(selText, "\D")
-
 		if (idClean = "")
 			return
 
-		ISEP_DEFAULT := Format('{:04}', idClean)
-		AddHistorico("📝 ISEP selecionado: " ISEP_DEFAULT, CORES.INFO)
+		candidate := Format('{:04}', idClean)
+		if (candidate = lastISEP)
+			return  ; bloqueia repetição do mesmo ISEP
 
+		ISEP_DEFAULT := candidate
+		lastISEP := candidate
+
+		AddHistorico("📝 ISEP selecionado: " ISEP_DEFAULT, CORES.INFO)
 		if (IsObject(guiCtrlClienteSelecionado))
 			guiCtrlClienteSelecionado.Text := "Cliente selecionado: " selText
+
+		; ao selecionar cliente por qualquer caminho, chama Status
+		if (client && IsObject(client) && client.connected) {
+			try StatusBtn(0, 0)
+		}
 	}
+
 
 	HandleComboCommand(wParam, lParam, msg, hwnd) {
 		global guiCtrlISEP
@@ -1156,18 +1220,26 @@ Persistent
 	}
 
 	StatusBtn(GuiCtrlObj, Info) {
-		global client, ISEP_DEFAULT
+		global client, ISEP_DEFAULT, CORES, lastZonasUpdateTick
+		static lastISEP := ""
+
 		if (!client || !IsObject(client) || !client.connected) {
 			AddHistorico("❌ Não conectado", CORES.ERRO)
 			return
 		}
+
+		curr := ISEP_DEFAULT
+		if (curr = lastISEP)
+			return
+		lastISEP := curr
+
 		try {
-			client.StatusParticoes(RegExReplace(ISEP_DEFAULT, "\D"))
+			client.StatusParticoes(RegExReplace(curr, "\D"))
+			; StatusParticoes já chama StatusZonas; se não vier, tenta de novo depois de 700 ms
+			SetTimer(() => EnsureZonas(curr), -700)
 		} catch Error as e {
 			AddHistorico("❌ Erro: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
 		}
-		ZonasBtn(GuiCtrlObj, info)
-		OutputDebug("")
 	}
 
 	ZonasBtn(GuiCtrlObj, Info) {
@@ -1221,7 +1293,6 @@ Persistent
 
 	F4:: {
 		Global client
-		;ZonasBtn(0, 0)
 		client.ListarClientes()
 	}
 
