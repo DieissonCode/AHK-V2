@@ -9,6 +9,7 @@
 #Requires AutoHotkey v2.0
 #Warn All, off
 #SingleInstance Force
+
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Functions.ahk
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\ComboBoxFilter.ahk
 #Include C:\AutoHotkey\AHK V2\Sistema Monitoramento\libs\Class\Json.ahk
@@ -54,30 +55,32 @@ Persistent
 	}
 
 ; ===================== VARIÁVEIS GLOBAIS =====================
-	global client := 0
-	global particionesStatus := Map()
-	global zonasStatus := Map()
-	global historicoMensagens := []
-	global ultimaAtualizacao := ""
-	global statusConexao := "Desconectado"
-	global colorConexao := CORES.DESCONECTADO
-	global guiHwnd := 0
-	global gunidades := CarregarUnidadesDb()
+	; Variáveis principais
+		global client := 0
+		global particionesStatus := Map()
+		global zonasStatus := Map()
+		global historicoMensagens := []
+		global ultimaAtualizacao := ""
+		global statusConexao := "Desconectado"
+		global colorConexao := CORES.DESCONECTADO
+		global guiHwnd := 0
+		global gunidades := CarregarUnidadesDb()
 
-	global clientesMap := Map()
+		global clientesMap := Map()
 
 	; Controles de GUI
-	global guiCtrlISEP := 0
-	global guiCtrlStatusConexao := 0
-	global guiCtrlTimestamp := 0
-	global guiCtrlParticoes := []
-	global guiCtrlParticoesText := 0
-	global guiCtrlSensores := []
-	global guiCtrlHistorico := 0
+		global guiCtrlISEP := 0
+		global guiCtrlStatusConexao := 0
+		global guiCtrlTimestamp := 0
+		global guiCtrlParticoes := []
+		global guiCtrlParticoesText := 0
+		global guiCtrlSensores := []
+		global guiCtrlHistorico := 0
+		global guiCtrlClienteSelecionado := 0
 
 	; Buffers para recepção
-	global recvEncryptedAccum := Buffer(0)   ; acumula ciphertext entre recvs
-	global recvPlainBuffer    := ""          ; acumula plaintext (JSON não processado)
+		global recvEncryptedAccum := Buffer(0)   ; acumula ciphertext entre recvs
+		global recvPlainBuffer    := ""          ; acumula plaintext (JSON não processado)
 
 ; ===================== CLASSES =====================
 
@@ -352,7 +355,7 @@ Persistent
 		}
 	}
 
-	; Classe de criptografia AES CBC via BCrypt
+	; Classe de criptografia via Bcrypt (AES CBC)
 	class ViawebCrypto {
 		hAlg := 0
 		hKey := 0
@@ -972,7 +975,7 @@ Persistent
 
 	CriarGUI() {
 		global guiHwnd, guiCtrlStatusConexao, guiCtrlTimestamp, guiCtrlParticoes, guiCtrlSensores, guiCtrlHistorico, CORES
-			, gunidades, guiCtrlISEP
+			, gunidades, guiCtrlISEP, guiCtrlClienteSelecionado
 		MyGui := Gui()
 		guiHwnd := MyGui.Hwnd
 
@@ -991,9 +994,12 @@ Persistent
 		guiCtrlISEP := MyGui.Add("ComboBox", "x80 yp-3 w200", gunidades)
 		filter := ComboBoxFilter(guiCtrlISEP, gunidades, true, true)
 			global comboFilter := filter
-			OnMessage(0x0100, ComboKeyNavBlock)  ; WM_KEYDOWN
+		OnMessage(0x0100, ComboKeyNavBlock)    ; WM_KEYDOWN
+		OnMessage(0x0111, HandleComboCommand)  ; WM_COMMAND
 		guiCtrlISEP.Text := ISEP_DEFAULT
-		guiCtrlISEP.OnEvent("Change", ISEPChanged)
+
+		guiCtrlClienteSelecionado := MyGui.Add("Text", "x15 y+5 w410 c" CORES.TEXTO_GRUPO, "Cliente selecionado: (nenhum)")
+		ConfirmarISEP()
 
 		guiCtrlTimestamp := MyGui.Add("Text", "x15 w410 y+0", "Última atualização:`t00:00:00")
 		MyGui.Add("Text", "x15 w410 h2 Background" CORES.BORDER_INFO, "")
@@ -1039,22 +1045,80 @@ Persistent
 		MyGui.Title := "🛡️ VIAWEB Monitor - Dashboard de Monitoramento"
 	}
 
+	GetComboDropHwnd(cbHwnd) {
+		cbInfo := Buffer(40, 0) ; COMBOBOXINFO tem 40 bytes em 64-bit/32-bit também
+		NumPut("UInt", cbInfo.Size, cbInfo, 0) ; cbSize
+		if DllCall("user32\GetComboBoxInfo", "ptr", cbHwnd, "ptr", cbInfo) {
+			offset := (A_PtrSize = 8) ? 24 : 16 ; hwndList offset
+			return NumGet(cbInfo, offset, "ptr")
+		}
+		return 0
+	}
+
 	ComboKeyNavBlock(wParam, lParam, message, hwnd) {
 		global guiCtrlISEP, comboFilter
-		static VK_UP := 0x26, VK_DOWN := 0x28, CB_GETDROPPEDSTATE := 0x157
-
-		if (wParam != VK_UP && wParam != VK_DOWN)
-			return
+		static VK_RETURN := 0x0D, VK_NUMPAD_RETURN := 0x0D
 
 		focusHwnd := DllCall("GetFocus", "ptr")
-		if (focusHwnd != guiCtrlISEP.Hwnd && focusHwnd != comboFilter.editHwnd)
+		dropHwnd := GetComboDropHwnd(guiCtrlISEP.Hwnd)
+
+		; só processa se o foco está no combo, no edit ou na listbox
+		if (focusHwnd != guiCtrlISEP.Hwnd && focusHwnd != comboFilter.editHwnd && focusHwnd != dropHwnd)
 			return
 
-		dropped := DllCall("user32\SendMessageW", "ptr", guiCtrlISEP.Hwnd, "uint", CB_GETDROPPEDSTATE, "ptr", 0, "ptr", 0)
-		if (!dropped)
+		; intercepta Enter / NumPadEnter e confirma
+		if (wParam = VK_RETURN || wParam = VK_NUMPAD_RETURN) {
+			ConfirmarISEP()
+			return 0
+		}
+
+		; demais teclas seguem o fluxo normal
+	}
+
+	ConfirmarISEP() {
+		global guiCtrlISEP, ISEP_DEFAULT, CORES, guiCtrlClienteSelecionado
+
+		if (!IsObject(guiCtrlISEP))
 			return
 
-		comboFilter.SkipNextChange()
+		hwnd := guiCtrlISEP.Hwnd
+		idx := DllCall("user32\SendMessageW", "ptr", hwnd, "uint", 0x147, "ptr", 0, "ptr", 0, "int") ; CB_GETCURSEL
+		selText := ""
+
+		if (idx != -1) {
+			len := DllCall("user32\SendMessageW", "ptr", hwnd, "uint", 0x149, "ptr", idx, "ptr", 0, "int") ; CB_GETLBTEXTLEN
+			buf := Buffer((len + 1) * 2, 0)
+			DllCall("user32\SendMessageW", "ptr", hwnd, "uint", 0x148, "ptr", idx, "ptr", buf) ; CB_GETLBTEXT
+			selText := StrGet(buf, "UTF-16")
+		} else {
+			selText := guiCtrlISEP.Text
+		}
+
+		idClean := RegExReplace(selText, "\D")
+
+		if (idClean = "")
+			return
+
+		ISEP_DEFAULT := Format('{:04}', idClean)
+		AddHistorico("📝 ISEP selecionado: " ISEP_DEFAULT, CORES.INFO)
+
+		if (IsObject(guiCtrlClienteSelecionado))
+			guiCtrlClienteSelecionado.Text := "Cliente selecionado: " selText
+	}
+
+	HandleComboCommand(wParam, lParam, msg, hwnd) {
+		global guiCtrlISEP
+		if (!IsObject(guiCtrlISEP))
+			return
+
+		static CBN_SELCHANGE := 1, CBN_SELENDOK := 9
+		notify := (wParam >> 16) & 0xFFFF
+
+		; Dispara somente quando a seleção é confirmada (clique ou Enter com lista)
+		if (lParam = guiCtrlISEP.Hwnd && (notify = CBN_SELCHANGE || notify = CBN_SELENDOK)) {
+			ConfirmarISEP()
+			return 0
+		}
 	}
 
 	GuiClose(GuiObj) {
@@ -1102,6 +1166,8 @@ Persistent
 		} catch Error as e {
 			AddHistorico("❌ Erro: " e.Message "`r`n`t" e.Extra "`r`n`tLine - " e.Line, CORES.ERRO)
 		}
+		ZonasBtn(GuiCtrlObj, info)
+		OutputDebug("")
 	}
 
 	ZonasBtn(GuiCtrlObj, Info) {
@@ -1176,4 +1242,5 @@ Persistent
 		if (IsSet(client) && IsObject(client) && client.connected)
 			client.Disconnect()
 	}
-	OnExit(Shutdown)
+
+	OnExit(Shutdown)	
